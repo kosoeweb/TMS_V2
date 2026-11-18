@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>UT - Employee Portal</title>
+  <meta name="theme-color" content="#601a1a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="UT Portal">
+  <link rel="icon" type="image/png" href="emp.png">
+  <link rel="apple-touch-icon" href="emp.png">
+  <link rel="manifest" href="manifest.json">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <style>
+    body { background-color: #f4f6f9; }
+    .navbar { background: #601a1a !important; }
+    .pending-exam-banner { background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%); border-left: 5px solid #dc3545; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar navbar-dark mb-4 shadow-sm">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+      <span class="navbar-brand fw-bold text-white d-flex align-items-center mb-0">
+        <img src="logo.png" alt="UT Logo" style="height: 35px; margin-right: 10px; border-radius: 4px;">
+        <div style="line-height: 1.1;">Universal Tractor Co., Ltd.<br><small style="font-size: 0.75rem;">Employee Portal</small></div>
+      </span>
+      <div class="d-flex align-items-center gap-2">
+        <span id="connStatus" class="badge bg-success" onclick="loadPortalData(true)" style="cursor:pointer;" title="Tap to sync latest data">
+          <i class="bi bi-wifi"></i> Live
+        </span>
+        <button class="btn btn-outline-light btn-sm" onclick="logoutEmp()"><i class="bi bi-box-arrow-right"></i> Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container pb-5" style="max-width: 680px;">
+
+    <!-- Employee Profile Card -->
+    <div id="profileBox" class="card p-3 mb-3 align-items-center bg-white rounded border-0 shadow-sm" style="display:flex; flex-direction:row;">
+      <img id="profImg" src="" alt="Profile" style="width:75px; height:75px; object-fit:cover; border-radius:50%; border: 3px solid #f4f6f9; display:none;">
+      <div class="ms-3 flex-grow-1">
+        <h5 id="profName" class="mb-1 fw-bold text-primary">Loading...</h5>
+        <div id="profPos" class="text-dark fw-bold small mb-1"></div>
+        <div id="profDept" class="text-muted small"></div>
+        <div class="mt-1 d-flex flex-wrap gap-1">
+          <span id="profCodeBadge" class="badge bg-secondary"></span>
+          <span id="profJoinBadge" class="badge bg-light text-dark border"></span>
+          <span id="profNrcBadge" class="badge bg-light text-dark border"></span>
+          <span id="profInsBadge" class="badge bg-light text-dark border"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending Exam Alert Banner -->
+    <div id="pendingExamBanner" class="card p-3 mb-3 shadow-sm pending-exam-banner" style="display:none;"></div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills mb-3 nav-justified bg-white rounded shadow-sm p-1">
+      <li class="nav-item"><a class="nav-link active fw-bold" data-bs-toggle="tab" href="#attTab"><i class="bi bi-geo-alt-fill"></i> Attendance</a></li>
+      <li class="nav-item"><a class="nav-link fw-bold text-secondary" data-bs-toggle="tab" href="#leaveTab"><i class="bi bi-calendar-event"></i> Leave</a></li>
+      <li class="nav-item">
+        <a class="nav-link fw-bold text-danger position-relative" data-bs-toggle="tab" href="#examTab">
+          <i class="bi bi-mortarboard-fill"></i> Exams
+          <span id="examCountBadge" class="badge bg-danger rounded-pill ms-1" style="display:none;">0</span>
+        </a>
+      </li>
+      <li class="nav-item"><a class="nav-link fw-bold text-info" data-bs-toggle="tab" href="#ledgerTab"><i class="bi bi-journal-text"></i> Ledger</a></li>
+    </ul>
+
+    <div class="tab-content">
+      <!-- Attendance Tab -->
+      <div class="tab-pane fade show active" id="attTab">
+        <div class="card p-3 shadow-sm border-0 border-top border-primary border-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold mb-0 text-secondary">Daily Time Record</h6>
+            <button class="btn btn-sm btn-outline-primary" onclick="evaluateAttendanceState(true)"><i class="bi bi-arrow-clockwise"></i> Refresh GPS</button>
+          </div>
+          <div class="alert alert-light border small mb-3">
+            <div class="d-flex justify-content-between mb-1"><strong>Time Status:</strong> <span id="timeStat" class="text-primary">Calculating...</span></div>
+            <div class="d-flex justify-content-between align-items-center flex-wrap"><strong>Location:</strong> <span id="geoStat" class="text-muted">Fetching GPS...</span></div>
+          </div>
+          <div class="d-flex justify-content-between gap-2">
+            <button class="btn btn-success w-50 fw-bold py-2" id="btnIn" onclick="submitAtt('Check-In')" disabled><i class="bi bi-box-arrow-in-right"></i> Check In</button>
+            <button class="btn btn-danger w-50 fw-bold py-2" id="btnOut" onclick="submitAtt('Check-Out')" disabled><i class="bi bi-box-arrow-right"></i> Check Out</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leave Tab -->
+      <div class="tab-pane fade" id="leaveTab">
+        <div class="card p-3 shadow-sm border-0 border-top border-warning border-4">
+          <h6 class="fw-bold mb-3 text-secondary">Leave Application</h6>
+          <label class="small fw-bold mb-1">Select Leave Type</label>
+          <select id="leaveType" class="form-select mb-2" onchange="checkLeaveType()"><option value="">Select Leave Type...</option></select>
+          <div id="leaveQuotaInfo" class="alert alert-info py-1 px-2 small mb-3" style="display:none;"></div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6"><label class="small fw-bold">Start Date</label><input type="date" id="lStart" class="form-control" onchange="calcDays()"></div>
+            <div class="col-6"><label class="small fw-bold">End Date</label><input type="date" id="lEnd" class="form-control" onchange="calcDays()"></div>
+          </div>
+          <div class="mb-3"><label class="small fw-bold">Total Days</label><input type="number" id="lDays" class="form-control bg-light" readonly></div>
+          <div class="mb-3"><label class="small fw-bold">Reason</label><textarea id="lReason" class="form-control" rows="2" placeholder="Enter reason for leave..."></textarea></div>
+          <button class="btn btn-warning w-100 fw-bold shadow-sm" id="btnLeave" onclick="submitLeave()">Submit Application</button>
+        </div>
+      </div>
+
+      <!-- Online Exams Tab -->
+      <div class="tab-pane fade" id="examTab">
+        <div class="card p-3 shadow-sm border-0 border-top border-danger border-4">
+          <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-patch-check-fill text-danger"></i> Assigned Tests & Assessment Results</h6>
+          <div id="myExamsContainer">
+            <div class="text-center text-muted py-3">Loading exams...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ledger Tab -->
+      <div class="tab-pane fade" id="ledgerTab">
+        <div class="card p-3 shadow-sm border-0 border-top border-info border-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="fw-bold mb-0 text-secondary">Individual Record History</h6>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-success" id="portalScoreBadge">Total Score: 0</span>
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="loadPortalData(true)" title="Refresh History">
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
+            </div>
+          </div>
+          <div class="row g-2 mb-3 bg-light p-2 rounded">
+            <div class="col-4">
+              <select id="filterMonth" class="form-select form-select-sm" onchange="renderMyLedger()">
+                <option value="">All Months</option>
+                <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option>
+                <option value="4">Apr</option><option value="5">May</option><option value="6">Jun</option>
+                <option value="7">Jul</option><option value="8">Aug</option><option value="9">Sep</option>
+                <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+              </select>
+            </div>
+            <div class="col-4">
+              <select id="filterYear" class="form-select form-select-sm" onchange="renderMyLedger()">
+                <option value="">All Years</option>
+                <option value="2025">2025</option><option value="2026">2026</option><option value="2027">2027</option><option value="2028">2028</option>
+              </select>
+            </div>
+            <div class="col-4">
+              <select id="filterStatus" class="form-select form-select-sm" onchange="renderMyLedger()">
+                <option value="">All Categories</option>
+                <option value="Attendance">Attendance</option>
+                <option value="Leave">Leave</option>
+                <option value="Transaction">HR Record</option>
+                <option value="Exam">Online Exam</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+            <table class="table table-sm table-bordered table-hover align-middle text-center">
+              <thead class="table-dark sticky-top">
+                <tr><th>Date</th><th>Category</th><th>Details</th><th>Status / Points</th></tr>
+              </thead>
+              <tbody id="myLedgerBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const firebaseConfig = {
+  apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
+  authDomain: "my-apps-a87a3.firebaseapp.com",
+  projectId: "my-apps-a87a3",
+  storageBucket: "my-apps-a87a3.firebasestorage.app",
+  messagingSenderId: "880270085984",
+  appId: "1:880270085984:web:94d1895bd28335abaf1805"
+};
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
+
+    function getPersistentEmpCode() {
+      var code = '';
+      try { code = (localStorage.getItem('ut_emp_code') || '').trim(); } catch (e) {}
+      if (!code) {
+        var match = document.cookie.match(/(?:^|;\s*)ut_emp_code=([^;]*)/);
+        if (match && match[1]) {
+          code = decodeURIComponent(match[1]).trim();
+          try { localStorage.setItem('ut_emp_code', code); } catch (e) {}
+        }
+      } else {
+        document.cookie = "ut_emp_code=" + encodeURIComponent(code) + "; path=/; max-age=31536000; SameSite=Lax";
+      }
+      return code;
+    }
+
+    function updatePersistentSession(empObj) {
+      var cleanCode = String(empObj.code || '').trim();
+      loggedEmpCode = cleanCode;
+      currentEmp = empObj;
+      try {
+        localStorage.setItem('ut_emp_code', cleanCode);
+        localStorage.setItem('ut_emp_profile', JSON.stringify(empObj));
+      } catch (e) {}
+      document.cookie = "ut_emp_code=" + encodeURIComponent(cleanCode) + "; path=/; max-age=31536000; SameSite=Lax";
+    }
+
+    let loggedEmpCode = getPersistentEmpCode();
+    if (!loggedEmpCode) {
+      window.location.replace('login.html');
+    }
+
+    let currentEmp = null;
+    try {
+      const savedProf = localStorage.getItem('ut_emp_profile');
+      if (savedProf) currentEmp = JSON.parse(savedProf);
+    } catch (e) {}
+
+    let sysSettings = {};
+    let leaveTypesMap = {};
+    let attendanceRules = [];
+    let myAttList = [], myLeaveList = [], myRecList = [];
+    let allExams = [], myExamResults = [];
+    let attLoaded = false, examsLoaded = false, resultsLoaded = false, lastPopupKey = '';
+    let cLat = 0, cLng = 0, cDist = 0, hasGeoFix = false, isGeoOK = false;
+
+    const CACHE_TTL_MS = 30 * 60 * 1000;
+
+    const defaultAttendanceRules = [
+      { action_type: 'Check-In', min_mins: -999, max_mins: 5, subcategory: 'On Time', color_class: 'text-success', show_mins: false },
+      { action_type: 'Check-In', min_mins: 6, max_mins: 15, subcategory: 'Small Late', color_class: 'text-warning', show_mins: true },
+      { action_type: 'Check-In', min_mins: 16, max_mins: 240, subcategory: 'Big Late', color_class: 'text-danger', show_mins: true },
+      { action_type: 'Check-In', min_mins: 241, max_mins: 999, subcategory: 'Half day', color_class: 'text-danger', show_mins: false },
+      { action_type: 'Check-Out', min_mins: -999, max_mins: -1, subcategory: 'Early check out', color_class: 'text-warning', show_mins: false },
+      { action_type: 'Check-Out', min_mins: 0, max_mins: 59, subcategory: 'On Time', color_class: 'text-success', show_mins: false },
+      { action_type: 'Check-Out', min_mins: 60, max_mins: 999, subcategory: 'Overtime', color_class: 'text-primary', show_mins: true }
+    ];
+
+    // ==================== SMART CACHE & TARGETED QUERY HELPERS ====================
+    function getSmartCache(key, ignoreTtl = false) {
+      try {
+        var raw = localStorage.getItem(key);
+        if (!raw) return null;
+        var parsed = JSON.parse(raw);
+        if (!ignoreTtl && Date.now() - (parsed.ts || 0) > CACHE_TTL_MS) return null;
+        return parsed.data;
+      } catch (e) { return null; }
+    }
+
+    function setSmartCache(key, data) {
+      try {
+        localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data: data }));
+      } catch (e) {}
+    }
+
+    function parseRestVal(v) {
+      if (!v || typeof v !== 'object') return v;
+      if (v.stringValue !== undefined) return v.stringValue;
+      if (v.integerValue !== undefined) return Number(v.integerValue);
+      if (v.doubleValue !== undefined) return Number(v.doubleValue);
+      if (v.booleanValue !== undefined) return Boolean(v.booleanValue);
+      if (v.nullValue !== undefined) return null;
+      if (v.arrayValue !== undefined) return (v.arrayValue.values || []).map(parseRestVal);
+      if (v.mapValue !== undefined) {
+        var obj = {};
+        var f = v.mapValue.fields || {};
+        Object.keys(f).forEach(function(k) { obj[k] = parseRestVal(f[k]); });
+        return obj;
+      }
+      return '';
+    }
+
+    function parseRestDoc(doc) {
+      var obj = { docId: doc.name ? doc.name.split('/').pop() : '' };
+      var fields = doc.fields || {};
+      Object.keys(fields).forEach(function(k) { obj[k] = parseRestVal(fields[k]); });
+      return obj;
+    }
+
+    function toRestVal(v) {
+      if (v === null || v === undefined) return { nullValue: null };
+      if (typeof v === 'boolean') return { booleanValue: v };
+      if (typeof v === 'number') {
+        return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+      }
+      if (Array.isArray(v)) return { arrayValue: { values: v.map(toRestVal) } };
+      if (typeof v === 'object') return { mapValue: { fields: toRestFields(v) } };
+      return { stringValue: String(v) };
+    }
+
+    function toRestFields(obj) {
+      var fields = {};
+      Object.keys(obj).forEach(function(k) { fields[k] = toRestVal(obj[k]); });
+      return fields;
+    }
+
+    async function queryByFieldSmart(colName, fieldName, fieldVal) {
+      try {
+        var sdkPromise = db.collection(colName).where(fieldName, '==', fieldVal).get();
+        var timeoutPromise = new Promise(function(_, reject) {
+          setTimeout(function() { reject(new Error("TIMEOUT")); }, 4500);
+        });
+        var snap = await Promise.race([sdkPromise, timeoutPromise]);
+        return snap.docs.map(function(d) { return { docId: d.id, ...d.data() }; });
+      } catch (err) {
+        var url = "https://firestore.googleapis.com/v1/projects/" + firebaseConfig.projectId + "/databases/(default)/documents:runQuery?key=" + firebaseConfig.apiKey;
+        var body = {
+          structuredQuery: {
+            from: [{ collectionId: colName }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: fieldName },
+                op: "EQUAL",
+                value: { stringValue: String(fieldVal) }
+              }
+            }
+          }
+        };
+        var res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        var rows = await res.json();
+        return (rows || []).filter(function(r) { return r.document; }).map(function(r) { return parseRestDoc(r.document); });
+      }
+    }
+
+    async function verifyAndSyncEmployeeProfile(empCode) {
+      try {
+        var sdkPromise = db.collection('employees').doc(empCode).get();
+        var timeoutPromise = new Promise(function(_, reject) {
+          setTimeout(function() { reject(new Error("TIMEOUT")); }, 4000);
+        });
+        var doc = await Promise.race([sdkPromise, timeoutPromise]);
+        if (doc.exists) {
+          var d = doc.data();
+          return Object.assign({}, d, { code: String(d.code || doc.id).trim() });
+        }
+      } catch (e) {}
+
+      try {
+        var url = "https://firestore.googleapis.com/v1/projects/" + firebaseConfig.projectId + "/databases/(default)/documents/employees/" + encodeURIComponent(empCode) + "?key=" + firebaseConfig.apiKey;
+        var res = await fetch(url);
+        if (res.ok) {
+          var dRest = await res.json();
+          if (dRest && dRest.fields) {
+            var parsed = parseRestDoc(dRest);
+            parsed.code = String(parsed.code || parsed.docId).trim();
+            return parsed;
+          }
+        }
+      } catch (e) {}
+
+      try {
+        var byCode = await queryByFieldSmart('employees', 'code', empCode);
+        if (byCode.length > 0) {
+          var found = byCode[0];
+          found.code = String(found.code || found.docId).trim();
+          return found;
+        }
+      } catch (e) {}
+
+      if (currentEmp && (currentEmp.username || currentEmp.name)) {
+        try {
+          if (currentEmp.username) {
+            var byUser = await queryByFieldSmart('employees', 'username', String(currentEmp.username).trim());
+            if (byUser.length > 0) {
+              var uMatch = byUser[0];
+              uMatch.code = String(uMatch.code || uMatch.docId).trim();
+              return uMatch;
+            }
+          }
+          if (currentEmp.name) {
+            var byName = await queryByFieldSmart('employees', 'name', String(currentEmp.name).trim());
+            if (byName.length > 0) {
+              var nMatch = byName[0];
+              nMatch.code = String(nMatch.code || nMatch.docId).trim();
+              return nMatch;
+            }
+          }
+        } catch (e) {}
+      }
+
+      return null;
+    }
+
+    async function fetchSettingsSmart(forceRefresh = false) {
+      if (!forceRefresh) {
+        var cached = getSmartCache('ut_cache_settings');
+        if (cached) return cached;
+      }
+      try {
+        var sdkPromise = db.collection('tms_settings').get();
+        var timeoutPromise = new Promise(function(_, reject) {
+          setTimeout(function() { reject(new Error("TIMEOUT")); }, 4500);
+        });
+        var snap = await Promise.race([sdkPromise, timeoutPromise]);
+        var list = snap.docs.map(function(d) { return d.data(); });
+        setSmartCache('ut_cache_settings', list);
+        return list;
+      } catch (e) {
+        var url = "https://firestore.googleapis.com/v1/projects/" + firebaseConfig.projectId + "/databases/(default)/documents/tms_settings?key=" + firebaseConfig.apiKey;
+        var res = await fetch(url);
+        if (res.ok) {
+          var data = await res.json();
+          var list = (data.documents || []).map(parseRestDoc);
+          setSmartCache('ut_cache_settings', list);
+          return list;
+        }
+        return getSmartCache('ut_cache_settings', true) || [];
+      }
+    }
+
+    async function saveRecordReliable(colName, payload) {
+      try {
+        var sdkPromise = db.collection(colName).add(payload);
+        var timeoutPromise = new Promise(function(_, reject) {
+          setTimeout(function() { reject(new Error("TIMEOUT")); }, 5500);
+        });
+        await Promise.race([sdkPromise, timeoutPromise]);
+      } catch (err) {
+        var url = "https://firestore.googleapis.com/v1/projects/" + firebaseConfig.projectId + "/databases/(default)/documents/" + colName + "?key=" + firebaseConfig.apiKey;
+        var res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: toRestFields(payload) })
+        });
+        if (!res.ok) throw new Error("Failed to save to database (HTTP " + res.status + ")");
+      }
+    }
+
+    function applySettingsData(settingsList) {
+      sysSettings = {};
+      leaveTypesMap = {};
+      attendanceRules = [];
+      let systemKeys = ['Office Lat', 'Office Lng', 'Geo Radius', 'Work Start', 'Work End'];
+      (settingsList || []).forEach(r => {
+        if (systemKeys.includes(r.category)) sysSettings[r.category] = r.subcategory;
+        if (r.category === 'Leave Type') leaveTypesMap[r.subcategory] = Number(r.allowed_days || 0);
+        if (r.category === 'Attendance Rule') attendanceRules.push(r);
+      });
+      refreshLeaveDropdown();
+      evaluateAttendanceState(false);
+    }
+
+    async function loadPortalData(forceRefresh = false) {
+      updateStatusBadge(true, true);
+      try {
+        const verifiedEmp = await verifyAndSyncEmployeeProfile(loggedEmpCode);
+
+        if (!verifiedEmp || !verifiedEmp.name) {
+          await Swal.fire({
+            title: 'Employee ID Updated',
+            text: 'Your Employee ID was updated by HR. Please sign in again with your username and password.',
+            icon: 'info',
+            confirmButtonColor: '#601a1a'
+          });
+          logoutEmp();
+          return;
+        }
+
+        if (verifiedEmp.status === 'Inactive') {
+          logoutEmp();
+          return;
+        }
+
+        updatePersistentSession(verifiedEmp);
+        renderProfileCard(currentEmp);
+
+        const settingsList = await fetchSettingsSmart(forceRefresh);
+        applySettingsData(settingsList);
+
+        let activeExams = !forceRefresh ? getSmartCache('ut_cache_active_exams') : null;
+        if (!activeExams) {
+          activeExams = await queryByFieldSmart('tms_exams', 'status', 'Active');
+          setSmartCache('ut_cache_active_exams', activeExams);
+        }
+        allExams = activeExams;
+        examsLoaded = true;
+
+        const empCacheKey = 'ut_cache_emp_records_' + loggedEmpCode.toUpperCase();
+        const cachedRecords = !forceRefresh ? getSmartCache(empCacheKey) : null;
+
+        if (cachedRecords) {
+          myAttList = cachedRecords.att || [];
+          myLeaveList = cachedRecords.leave || [];
+          myRecList = cachedRecords.rec || [];
+          myExamResults = cachedRecords.examRes || [];
+        } else {
+          const [attList, lvList, recList, exResList] = await Promise.all([
+            queryByFieldSmart('attendance', 'emp_code', loggedEmpCode),
+            queryByFieldSmart('leave', 'emp_code', loggedEmpCode),
+            queryByFieldSmart('records', 'emp_code', loggedEmpCode),
+            queryByFieldSmart('exam_results', 'emp_code', loggedEmpCode)
+          ]);
+
+          myAttList = attList;
+          myLeaveList = lvList;
+          myRecList = recList;
+          myExamResults = exResList;
+
+          setSmartCache(empCacheKey, {
+            att: myAttList,
+            leave: myLeaveList,
+            rec: myRecList,
+            examRes: myExamResults
+          });
+        }
+
+        attLoaded = true;
+        resultsLoaded = true;
+
+        updateStatusBadge(true, false);
+        applyAttendanceUI();
+        checkLeaveType();
+        evaluatePendingExams();
+        renderMyLedger();
+
+      } catch (err) {
+        const empCacheKey = 'ut_cache_emp_records_' + loggedEmpCode.toUpperCase();
+        const fallbackRecs = getSmartCache(empCacheKey, true);
+        if (fallbackRecs) {
+          myAttList = fallbackRecs.att || [];
+          myLeaveList = fallbackRecs.leave || [];
+          myRecList = fallbackRecs.rec || [];
+          myExamResults = fallbackRecs.examRes || [];
+          attLoaded = true;
+          resultsLoaded = true;
+          applyAttendanceUI();
+          checkLeaveType();
+          renderMyLedger();
+        }
+        updateStatusBadge(false, false);
+      }
+    }
+
+    function updateLocalEmpRecordsCache() {
+      const empCacheKey = 'ut_cache_emp_records_' + loggedEmpCode.toUpperCase();
+      setSmartCache(empCacheKey, {
+        att: myAttList,
+        leave: myLeaveList,
+        rec: myRecList,
+        examRes: myExamResults
+      });
+    }
+
+    function renderProfileCard(emp) {
+      if (!emp) return;
+      document.getElementById('profName').innerText = emp.name || loggedEmpCode;
+      document.getElementById('profPos').innerText = emp.position || 'Position Not Set';
+      document.getElementById('profDept').innerText = emp.dept ? emp.dept.replace('>', '-') : '';
+      document.getElementById('profCodeBadge').innerText = "ID: " + (emp.code || loggedEmpCode);
+      document.getElementById('profJoinBadge').innerText = "Join: " + (emp.joinDate || '-');
+      document.getElementById('profNrcBadge').innerText = "NRC: " + (emp.nrc || '-');
+      document.getElementById('profInsBadge').innerText = "Ins: " + (emp.insPolicyNo || '-') + (emp.insValidDate ? ` (Valid: ${emp.insValidDate})` : '');
+
+      let img = document.getElementById('profImg');
+      if (emp.photoUrl) {
+        img.src = emp.photoUrl;
+        img.style.display = 'block';
+      } else {
+        img.style.display = 'none';
+      }
+    }
+
+    function updateStatusBadge(isLive = true, isSyncing = false) {
+      const el = document.getElementById('connStatus');
+      if (isSyncing) {
+        el.className = 'badge bg-warning text-dark';
+        el.innerHTML = '<i class="bi bi-cloud-arrow-up"></i> Syncing...';
+      } else if (isLive && navigator.onLine) {
+        el.className = 'badge bg-success';
+        el.innerHTML = '<i class="bi bi-wifi"></i> Live (Tap to Sync)';
+      } else {
+        el.className = 'badge bg-secondary';
+        el.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Cached (Tap to Sync)';
+      }
+    }
+
+    function getTodayStr() {
+      const d = new Date();
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+
+    function parseFlexibleDate(dateStr, fallbackTimestamp) {
+      if (dateStr) {
+        const clean = String(dateStr).split(',')[0].trim();
+        if (clean.includes('/')) {
+          const parts = clean.split('/');
+          if (parts.length === 3) {
+            const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+            if (!isNaN(d)) return d;
+          }
+        }
+        if (clean.includes('-')) {
+          const parts = clean.split('-');
+          if (parts.length === 3) {
+            const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            if (!isNaN(d)) return d;
+          }
+        }
+        const parsed = new Date(clean);
+        if (!isNaN(parsed)) return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      }
+      if (fallbackTimestamp) {
+        const fb = new Date(Number(fallbackTimestamp));
+        if (!isNaN(fb)) return new Date(fb.getFullYear(), fb.getMonth(), fb.getDate());
+      }
+      return null;
+    }
+
+    function getLeaveRecordYear(leaveRow) {
+      const dObj = parseFlexibleDate(leaveRow.start_date || leaveRow.apply_date, leaveRow.created_at);
+      return dObj ? dObj.getFullYear() : new Date().getFullYear();
+    }
+
+    function isRecordFromToday(rec) {
+      const todayStr = getTodayStr();
+      const rawDate = String(rec.date_str || '').split(',')[0].trim();
+      if (rawDate === todayStr) return true;
+
+      const parts = rawDate.split('/');
+      if (parts.length === 3) {
+        const norm = `${String(parts[0]).padStart(2, '0')}/${String(parts[1]).padStart(2, '0')}/${parts[2]}`;
+        if (norm === todayStr) return true;
+      }
+
+      if (rec.created_at) {
+        const recDate = new Date(Number(rec.created_at));
+        const now = new Date();
+        if (
+          recDate.getFullYear() === now.getFullYear() &&
+          recDate.getMonth() === now.getMonth() &&
+          recDate.getDate() === now.getDate()
+        ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function getTodayAttendanceStatus() {
+      let status = { in: false, out: false, inStatus: '', outStatus: '' };
+      myAttList.filter(a => isRecordFromToday(a)).forEach(a => {
+        if (a.type === 'Check-In') {
+          status.in = true;
+          status.inStatus = a.time_status || status.inStatus;
+        }
+        if (a.type === 'Check-Out') {
+          status.out = true;
+          status.outStatus = a.time_status || status.outStatus;
+        }
+      });
+      return status;
+    }
+
+    function getTimeStatusInfo(actionType) {
+      let d = new Date();
+      let nowMins = d.getHours() * 60 + d.getMinutes();
+      let timeString = d.toTimeString().slice(0, 5);
+
+      let wStartMatch = String(sysSettings['Work Start'] || "09:00").match(/(\d+):(\d+)/);
+      let wStartMins = wStartMatch ? parseInt(wStartMatch[1], 10) * 60 + parseInt(wStartMatch[2], 10) : 540;
+
+      let wEndMatch = String(sysSettings['Work End'] || "17:00").match(/(\d+):(\d+)/);
+      let wEndMins = wEndMatch ? parseInt(wEndMatch[1], 10) * 60 + parseInt(wEndMatch[2], 10) : 1020;
+
+      let baseMins = actionType === 'Check-In' ? wStartMins : wEndMins;
+      let diffMins = nowMins - baseMins;
+
+      let activeRules = (attendanceRules.length > 0 ? attendanceRules : defaultAttendanceRules)
+        .filter(r => r.action_type === actionType)
+        .sort((a, b) => Number(a.min_mins) - Number(b.min_mins));
+
+      for (let rule of activeRules) {
+        if (diffMins >= Number(rule.min_mins) && diffMins <= Number(rule.max_mins)) {
+          let labelText = rule.subcategory;
+          if (rule.show_mins && diffMins !== 0) {
+            labelText += ` (${Math.abs(diffMins)}m)`;
+          }
+          return {
+            label: labelText,
+            css: `${rule.color_class || 'text-primary'} fw-bold`,
+            timeString
+          };
+        }
+      }
+      return { label: "Recorded", css: "text-secondary fw-bold", timeString };
+    }
+
+    function getEmpOpeningQuota(leaveType) {
+      if (currentEmp && currentEmp.openingLeaves && currentEmp.openingLeaves[leaveType] !== undefined && currentEmp.openingLeaves[leaveType] !== '') {
+        return Number(currentEmp.openingLeaves[leaveType]);
+      }
+      return Number(leaveTypesMap[leaveType] || 0);
+    }
+
+    function refreshLeaveDropdown() {
+      const lSel = document.getElementById('leaveType');
+      const curVal = lSel.value;
+      lSel.innerHTML = '<option value="">Select Leave Type...</option>' +
+        Object.keys(leaveTypesMap).map(t => `<option value="${t}">${t} (Opening Quota: ${getEmpOpeningQuota(t)} Days)</option>`).join('');
+      lSel.value = curVal;
+      checkLeaveType();
+    }
+
+    window.onload = () => {
+      if (currentEmp && currentEmp.name) renderProfileCard(currentEmp);
+      evaluateAttendanceState(true);
+      loadPortalData(false);
+    };
+
+    function evaluateAttendanceState(requestNewGps = false) {
+      applyAttendanceUI();
+
+      if (navigator.geolocation && (requestNewGps || !hasGeoFix)) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          cLat = pos.coords.latitude;
+          cLng = pos.coords.longitude;
+          hasGeoFix = true;
+          applyAttendanceUI();
+        }, () => {
+          document.getElementById('geoStat').innerText = "GPS Access Denied. Please enable Location.";
+        }, { enableHighAccuracy: true });
+      }
+    }
+
+    // ==================== UNLOCKED GEO LOCATION ATTENDANCE UI ====================
+    function applyAttendanceUI() {
+      const btnIn = document.getElementById('btnIn');
+      const btnOut = document.getElementById('btnOut');
+
+      btnIn.disabled = true;
+      btnOut.disabled = true;
+
+      const status = getTodayAttendanceStatus();
+
+      btnIn.innerHTML = status.in
+        ? '<i class="bi bi-check-circle-fill"></i> Checked In'
+        : '<i class="bi bi-box-arrow-in-right"></i> Check In';
+
+      btnOut.innerHTML = status.out
+        ? '<i class="bi bi-check-circle-fill"></i> Checked Out'
+        : '<i class="bi bi-box-arrow-right"></i> Check Out';
+
+      const timeStatEl = document.getElementById('timeStat');
+
+      if (!status.in) {
+        const inInfo = getTimeStatusInfo('Check-In');
+        timeStatEl.innerText = `${inInfo.label} (Current: ${inInfo.timeString})`;
+        timeStatEl.className = inInfo.css;
+      } else if (status.in && !status.out) {
+        const outInfo = getTimeStatusInfo('Check-Out');
+        const recordedIn = status.inStatus || 'On Time';
+        timeStatEl.innerText = `Checked In: ${recordedIn} | Out Now: ${outInfo.label} (${outInfo.timeString})`;
+        timeStatEl.className = outInfo.css;
+      } else {
+        timeStatEl.innerText = `Completed Today (In: ${status.inStatus || 'On Time'} / Out: ${status.outStatus || 'Done'})`;
+        timeStatEl.className = 'text-muted fw-bold';
+      }
+
+      if (!hasGeoFix) {
+        document.getElementById('geoStat').innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span> Locating GPS...';
+        return;
+      }
+
+      // Allow attendance from anywhere once GPS is captured
+      isGeoOK = true;
+      const mapUrl = `https://www.google.com/maps?q=${cLat},${cLng}`;
+
+      document.getElementById('geoStat').innerHTML = `
+        <span class="text-success fw-bold">
+          <i class="bi bi-geo-alt-fill"></i> ${cLat.toFixed(5)}, ${cLng.toFixed(5)}
+        </span>
+        <a href="${mapUrl}" target="_blank" class="badge bg-primary text-decoration-none ms-1">
+          <i class="bi bi-map"></i> Google Map
+        </a>
+      `;
+
+      if (currentEmp && currentEmp.name) {
+        if (!status.in) btnIn.disabled = false;
+        if (status.in && !status.out) btnOut.disabled = false;
+      }
+
+      if (status.in && status.out) {
+        document.getElementById('geoStat').innerHTML += " <span class='badge bg-secondary ms-1'>Completed Today</span>";
+      }
+    }
+
+    function getDist(lat1, lon1, lat2, lon2) {
+      let p = 0.017453292519943295, c = Math.cos;
+      return 12742000 * Math.asin(Math.sqrt(0.5 - c((lat2 - lat1) * p) / 2 + c(lat1 * p) * c(lat2 * p) * (1 - c((lon2 - lon1) * p)) / 2));
+    }
+
+    async function submitAtt(type) {
+      if (!hasGeoFix) {
+        return Swal.fire("GPS Required", "GPS location is not ready yet. Please enable location access and tap Refresh GPS.", "warning");
+      }
+
+      if (!currentEmp || !currentEmp.code || !currentEmp.name) {
+        const verified = await verifyAndSyncEmployeeProfile(loggedEmpCode);
+        if (!verified || !verified.name) {
+          await Swal.fire("Session Expired", "Your Employee ID was updated. Please sign in again.", "warning");
+          logoutEmp();
+          return;
+        }
+        updatePersistentSession(verified);
+        renderProfileCard(currentEmp);
+      }
+
+      const currentStatus = getTodayAttendanceStatus();
+      if (type === 'Check-In' && currentStatus.in) {
+        applyAttendanceUI();
+        return Swal.fire("Already Checked In", "You have already checked in today.", "warning");
+      }
+      if (type === 'Check-Out' && currentStatus.out) {
+        applyAttendanceUI();
+        return Swal.fire("Already Checked Out", "You have already checked out today.", "warning");
+      }
+
+      const actionTimeInfo = getTimeStatusInfo(type);
+      const recordedStatusLabel = actionTimeInfo.label;
+      const todayStr = getTodayStr();
+      const mapUrl = `https://www.google.com/maps?q=${cLat},${cLng}`;
+
+      let oLat = parseFloat(sysSettings['Office Lat'] || 0);
+      let oLng = parseFloat(sysSettings['Office Lng'] || 0);
+      let rad = parseFloat(sysSettings['Geo Radius'] || 100);
+      let dist = (oLat !== 0 && oLng !== 0) ? getDist(cLat, cLng, oLat, oLng) : 0;
+      let geoStatusLabel = (oLat !== 0 && oLng !== 0)
+        ? (dist <= rad ? `Inside Zone (${Math.round(dist)}m)` : `Remote / Outside (${Math.round(dist)}m)`)
+        : "GPS Recorded";
+
+      const btn = document.getElementById(type === 'Check-In' ? 'btnIn' : 'btnOut');
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+      updateStatusBadge(true, true);
+
+      let payload = {
+        date_str: todayStr,
+        time_str: new Date().toTimeString().slice(0, 8),
+        emp_code: String(currentEmp.code).trim(),
+        emp_name: String(currentEmp.name).trim(),
+        type: type,
+        location: `${cLat}, ${cLng}`,
+        map_url: mapUrl,
+        geo_status: geoStatusLabel,
+        time_status: recordedStatusLabel,
+        created_at: Date.now()
+      };
+
+      try {
+        await saveRecordReliable('attendance', payload);
+        myAttList.push(payload);
+        updateLocalEmpRecordsCache();
+        updateStatusBadge(true, false);
+        applyAttendanceUI();
+        renderMyLedger();
+        Swal.fire("Recorded", `${type} (${recordedStatusLabel}) saved successfully.`, "success");
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+        updateStatusBadge(false, false);
+        Swal.fire("Error", err.message, "error");
+      }
+    }
+
+    function isExamAssignedToMe(ex) {
+      if (String(ex.status || 'Active').toLowerCase() !== 'active') return false;
+      if (Array.isArray(ex.target_emps) && ex.target_emps.length > 0) {
+        if (ex.target_emps.includes('ALL')) return true;
+        return ex.target_emps.some(code => String(code).trim().toUpperCase() === loggedEmpCode.toUpperCase());
+      }
+      const targetDept = String(ex.target_dept || 'ALL').trim();
+      if (!targetDept || targetDept.toUpperCase() === 'ALL') return true;
+      return String(currentEmp?.dept || '').toLowerCase().includes(targetDept.toLowerCase());
+    }
+
+    function evaluatePendingExams() {
+      if (!currentEmp || !examsLoaded || !resultsLoaded) return;
+
+      const assignedActiveExams = allExams.filter(ex => isExamAssignedToMe(ex));
+      const pendingExams = assignedActiveExams.filter(ex => {
+        return !myExamResults.some(r => String(r.exam_id).trim().toUpperCase() === String(ex.exam_id).trim().toUpperCase());
+      });
+
+      const badge = document.getElementById('examCountBadge');
+      const banner = document.getElementById('pendingExamBanner');
+
+      if (pendingExams.length > 0) {
+        badge.innerText = pendingExams.length;
+        badge.style.display = 'inline-block';
+
+        banner.style.display = 'block';
+        banner.innerHTML = `
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <div class="fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill"></i> You have (${pendingExams.length}) pending assessment(s) to complete!</div>
+              <div class="small text-dark">${pendingExams.map(e => e.title).join(', ')}</div>
+            </div>
+            <a href="exam.html?exam_id=${encodeURIComponent(pendingExams[0].exam_id)}" class="btn btn-danger btn-sm fw-bold px-3 shadow-sm">
+              Start Now <i class="bi bi-arrow-right-circle"></i>
+            </a>
+          </div>
+        `;
+
+        const currentPopupKey = pendingExams.map(e => e.exam_id).sort().join(',');
+        if (lastPopupKey !== currentPopupKey) {
+          lastPopupKey = currentPopupKey;
+          const linksHtml = pendingExams.map(ex => {
+            const totalMarks = Number(ex.question_count || 20) * Number(ex.points_per_q || 5);
+            return `
+              <div class="border border-danger rounded p-3 mb-2 bg-light text-start shadow-sm">
+                <div class="fw-bold text-primary fs-6">${ex.title}</div>
+                <div class="small text-muted mb-2">Exam ID: <b>${ex.exam_id}</b> | Questions: <b>${ex.question_count}</b> | Total: <b>${totalMarks} Marks</b></div>
+                <a href="exam.html?exam_id=${encodeURIComponent(ex.exam_id)}" class="btn btn-danger w-100 fw-bold py-2">
+                  <i class="bi bi-pencil-square"></i> Click Here to Start Exam
+                </a>
+              </div>
+            `;
+          }).join('');
+
+          setTimeout(() => {
+            Swal.fire({
+              title: 'Pending Assessment Reminder',
+              html: `<p class="small text-dark mb-3">Please complete your assigned online assessment(s) below:</p>${linksHtml}`,
+              icon: 'warning',
+              allowOutsideClick: false,
+              confirmButtonText: 'Remind Me Later',
+              confirmButtonColor: '#6c757d'
+            });
+          }, 300);
+        }
+      } else {
+        badge.style.display = 'none';
+        banner.style.display = 'none';
+      }
+
+      const container = document.getElementById('myExamsContainer');
+      let html = '';
+
+      if (pendingExams.length > 0) {
+        html += `<div class="fw-bold text-danger small mb-2">Pending Assessments</div>`;
+        pendingExams.forEach(ex => {
+          const totalMarks = Number(ex.question_count || 20) * Number(ex.points_per_q || 5);
+          html += `
+            <div class="card p-3 mb-3 border-danger bg-light">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <h6 class="fw-bold text-dark mb-1">${ex.title}</h6>
+                  <div class="small text-muted">ID: ${ex.exam_id} | ${ex.question_count} Questions (${totalMarks} Marks)</div>
+                </div>
+                <a href="exam.html?exam_id=${encodeURIComponent(ex.exam_id)}" class="btn btn-danger btn-sm fw-bold px-3">Start Exam</a>
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      html += `<div class="fw-bold text-success small mb-2 mt-3">Completed Assessments</div>`;
+      if (myExamResults.length === 0) {
+        html += `<div class="text-muted small py-3 text-center border rounded bg-light">No completed assessments yet.</div>`;
+      } else {
+        myExamResults.sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).forEach(res => {
+          const badgeCls = res.passed ? 'bg-success' : 'bg-danger';
+          html += `
+            <div class="card p-3 mb-2 border">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <div class="fw-bold text-primary">${res.exam_title} <span class="badge ${badgeCls} ms-1">${res.passed ? 'PASSED' : 'FAILED'}</span></div>
+                  <div class="small text-muted">Date: ${res.date_str} | Score: <b class="text-dark">${res.score} / ${res.total_marks}</b></div>
+                </div>
+                <a href="exam.html?exam_id=${encodeURIComponent(res.exam_id)}" class="btn btn-outline-primary btn-sm fw-bold">
+                  <i class="bi bi-file-earmark-pdf-fill text-danger"></i> View & Download PDF
+                </a>
+              </div>
+            </div>
+          `;
+        });
+      }
+      container.innerHTML = html;
+    }
+
+    function logoutEmp() {
+      try {
+        localStorage.removeItem('ut_emp_code');
+        localStorage.removeItem('ut_emp_profile');
+      } catch (e) {}
+      document.cookie = "ut_emp_code=; path=/; max-age=0; SameSite=Lax";
+      window.location.replace('login.html?logout=1');
+    }
+
+    function checkLeaveType() {
+      let type = document.getElementById('leaveType').value;
+      let infoBox = document.getElementById('leaveQuotaInfo');
+      if (!type) { infoBox.style.display = 'none'; return; }
+
+      let currentYear = new Date().getFullYear();
+      let allowed = getEmpOpeningQuota(type);
+      let used = myLeaveList
+        .filter(l => l.leave_type === type && l.status === 'Approved' && getLeaveRecordYear(l) === currentYear)
+        .reduce((sum, l) => sum + Number(l.total_days || 0), 0);
+      let rem = Math.max(0, allowed - used);
+
+      infoBox.style.display = 'block';
+      infoBox.innerHTML = `<strong>${type} (${currentYear}):</strong> Opening Quota: <b>${allowed}</b> Days | Used: <b>${used}</b> Days | Remaining: <b>${rem}</b> Days`;
+    }
+
+    function calcDays() {
+      let d1 = new Date(document.getElementById('lStart').value);
+      let d2 = new Date(document.getElementById('lEnd').value);
+      document.getElementById('lDays').value = (d1 && d2 && d2 >= d1) ? Math.ceil(Math.abs(d2 - d1) / 86400000) + 1 : '';
+    }
+
+    async function submitLeave() {
+      let type = document.getElementById('leaveType').value;
+      let start = document.getElementById('lStart').value;
+      let days = Number(document.getElementById('lDays').value);
+      let reason = document.getElementById('lReason').value;
+
+      if (!type || !start || !days) return Swal.fire("Incomplete", "Please fill in all required fields.", "warning");
+
+      if (!currentEmp || !currentEmp.code || !currentEmp.name) {
+        const verified = await verifyAndSyncEmployeeProfile(loggedEmpCode);
+        if (!verified || !verified.name) {
+          await Swal.fire("Session Expired", "Your Employee ID was updated. Please sign in again.", "warning");
+          logoutEmp();
+          return;
+        }
+        updatePersistentSession(verified);
+      }
+
+      const btn = document.getElementById('btnLeave');
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Submitting...';
+      updateStatusBadge(true, true);
+
+      let payload = {
+        apply_date: getTodayStr(),
+        emp_code: String(currentEmp.code).trim(),
+        emp_name: String(currentEmp.name).trim(),
+        leave_type: type,
+        start_date: start,
+        end_date: document.getElementById('lEnd').value,
+        total_days: days,
+        reason: reason,
+        status: "Pending",
+        created_at: Date.now()
+      };
+
+      try {
+        await saveRecordReliable('leave', payload);
+        myLeaveList.push(payload);
+        updateLocalEmpRecordsCache();
+        updateStatusBadge(true, false);
+        checkLeaveType();
+        renderMyLedger();
+        Swal.fire("Submitted", "Leave application submitted successfully.", "success");
+        ['lStart', 'lEnd', 'lDays', 'lReason'].forEach(id => document.getElementById(id).value = '');
+      } catch (err) {
+        updateStatusBadge(false, false);
+        Swal.fire("Error", err.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+
+    function getPortalMapLinkHtml(rec) {
+      const url = rec.map_url || (rec.location ? `https://www.google.com/maps?q=${String(rec.location).replace(/\s+/g, '')}` : '');
+      if (!url) return '';
+      return ` <a href="${url}" target="_blank" class="badge bg-light text-primary border text-decoration-none ms-1"><i class="bi bi-geo-alt-fill text-danger"></i> Map</a>`;
+    }
+
+    function renderMyLedger() {
+      let combined = [];
+      let totalScore = 0;
+
+      myAttList.forEach(a => {
+        let dObj = parseFlexibleDate(a.date_str, a.created_at);
+        let sortTime = a.created_at || (dObj ? dObj.getTime() : 0);
+        combined.push({
+          time: sortTime,
+          filterDateObj: dObj || new Date(sortTime),
+          dateStr: `${a.date_str} ${a.time_str || ''}`.trim(),
+          catType: "Attendance",
+          typeHtml: '<span class="badge bg-info text-dark">Attendance</span>',
+          details: `${a.type}${a.location ? ' (' + a.location + ')' : ''}${getPortalMapLinkHtml(a)}`,
+          status: a.time_status || 'On Time'
+        });
+      });
+
+      myLeaveList.forEach(l => {
+        let dObj = parseFlexibleDate(l.start_date || l.apply_date, l.created_at);
+        let sortTime = l.created_at || (dObj ? dObj.getTime() : 0);
+        combined.push({
+          time: sortTime,
+          filterDateObj: dObj || new Date(sortTime),
+          dateStr: `${l.apply_date} (${l.start_date || ''} ~ ${l.end_date || ''})`,
+          catType: "Leave",
+          typeHtml: '<span class="badge bg-warning text-dark">Leave</span>',
+          details: `${l.leave_type} (${l.total_days} Days)${l.reason ? ' - ' + l.reason : ''}`,
+          status: l.status || 'Pending'
+        });
+      });
+
+      myRecList.forEach(r => {
+        if (r.type === 'EXAM / TRAINING') return;
+        let dObj = parseFlexibleDate(r.date_str, r.created_at);
+        let sortTime = r.created_at || (dObj ? dObj.getTime() : 0);
+        let eff = r.effect || (r.type === 'DEMERIT' ? '-' : '+');
+        if (eff === '+') totalScore += Number(r.points || 0);
+        else if (eff === '-') totalScore -= Number(r.points || 0);
+
+        let badgeColor = eff === '+' ? 'bg-success' : (eff === '-' ? 'bg-danger' : 'bg-secondary');
+        combined.push({
+          time: sortTime,
+          filterDateObj: dObj || new Date(sortTime),
+          dateStr: r.date_str,
+          catType: "Transaction",
+          typeHtml: `<span class="badge ${badgeColor}">${r.type}</span>`,
+          details: `${r.record_id ? '[' + r.record_id + '] ' : ''}${r.line_remark || 'Official Record'}`,
+          status: eff === '0' ? 'Record' : `${eff}${r.points} Pts`
+        });
+      });
+
+      myExamResults.forEach(x => {
+        let dObj = parseFlexibleDate(x.date_str, x.created_at);
+        let sortTime = x.created_at || (dObj ? dObj.getTime() : 0);
+        combined.push({
+          time: sortTime,
+          filterDateObj: dObj || new Date(sortTime),
+          dateStr: x.date_str,
+          catType: "Exam",
+          typeHtml: '<span class="badge bg-primary">Online Exam</span>',
+          details: `${x.exam_id} - ${x.exam_title}`,
+          status: `${x.score}/${x.total_marks} (${x.passed ? 'PASSED' : 'FAILED'})`
+        });
+      });
+
+      const scoreBadge = document.getElementById('portalScoreBadge');
+      scoreBadge.innerText = `Total Score: ${totalScore}`;
+      scoreBadge.className = `badge ${totalScore >= 0 ? 'bg-success' : 'bg-danger'}`;
+
+      combined.sort((a, b) => b.time - a.time);
+
+      let fMonth = document.getElementById('filterMonth').value;
+      let fYear = document.getElementById('filterYear').value;
+      let fStatus = document.getElementById('filterStatus').value;
+
+      let filtered = combined.filter(d => {
+        let dObj = d.filterDateObj;
+        let matchM = fMonth === "" || (dObj && !isNaN(dObj) && (dObj.getMonth() + 1).toString() === fMonth);
+        let matchY = fYear === "" || (dObj && !isNaN(dObj) && dObj.getFullYear().toString() === fYear);
+        let matchS = fStatus === "" || d.catType === fStatus;
+        return matchM && matchY && matchS;
+      });
+
+      if (filtered.length === 0) {
+        document.getElementById('myLedgerBody').innerHTML = '<tr><td colspan="4" class="text-muted py-3">No records found.</td></tr>';
+        return;
+      }
+
+      document.getElementById('myLedgerBody').innerHTML = filtered.map(d => {
+        let statClass = (d.status.includes('Late') || d.status.includes('Half') || d.status.includes('-') || d.status.includes('FAILED'))
+          ? 'text-danger fw-bold'
+          : 'text-success fw-bold';
+        if (d.status.includes('Small Late') || d.status.includes('Pending') || d.status.includes('Early')) {
+          statClass = 'text-warning text-dark fw-bold';
+        }
+        return `<tr><td class="small text-nowrap">${d.dateStr}</td><td>${d.typeHtml}</td><td class="small text-start">${d.details}</td><td class="${statClass} small text-nowrap">${d.status}</td></tr>`;
+      }).join('');
+    }
+  </script>
+</body>
+</html>

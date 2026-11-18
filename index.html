@@ -1,0 +1,2007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UT - Talent Management System</title>
+  <link rel="icon" type="image/png" href="emp.png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <style>
+    body { background-color: #f4f6f9; }
+    .navbar { background: #601a1a !important; }
+    .card { border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .q-preview-box { max-height: 320px; overflow-y: auto; background: #fff; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px; }
+    .setting-list-box { max-height: 240px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 6px; background: #fff; }
+    .emp-multi-box { max-height: 180px; overflow-y: auto; background: #fff; border: 1px solid #ced4da; border-radius: 6px; padding: 8px 12px; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold text-white text-decoration-none d-flex align-items-center" href="#">
+        <img src="logo.png" alt="UT Logo" style="height: 45px; margin-right: 15px; border-radius: 6px;">
+        <div style="line-height: 1.2;">
+          Universal Tractor Co., Ltd.<br>
+          <small style="font-size: 0.8rem; font-weight: 400;">Talent Management System</small>
+        </div>
+      </a>
+      <div class="d-flex align-items-center">
+        <span id="connStatus" class="badge bg-success me-2"><i class="bi bi-wifi"></i> Ready</span>
+        <button type="button" class="btn btn-warning btn-sm fw-bold me-2" onclick="forceSyncAll()" title="Fetch latest records from server">
+          <i class="bi bi-arrow-clockwise"></i> Sync Data
+        </button>
+        <a href="index.html" class="btn btn-light btn-sm mx-1">Directory</a>
+        <a href="transaction.html" class="btn btn-outline-light btn-sm mx-1">HR Records</a>
+        <a href="dashboard.html" class="btn btn-outline-light btn-sm mx-1">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid px-4 pb-5">
+    <div class="card p-4">
+      <h4 class="mb-4 text-primary fw-bold">Employee Directory & System Setup</h4>
+      <ul class="nav nav-tabs mb-4" id="mainDirTabs">
+        <li class="nav-item"><a class="nav-link active fw-bold" data-bs-toggle="tab" href="#createEmp">Register Employee</a></li>
+        <li class="nav-item"><a class="nav-link fw-bold" data-bs-toggle="tab" href="#editEmp">Edit Profile</a></li>
+        <li class="nav-item"><a class="nav-link fw-bold" data-bs-toggle="tab" href="#settings">Job & System Settings</a></li>
+        <li class="nav-item">
+          <a class="nav-link fw-bold text-danger" href="#examSetup" id="examSetupTabLink" onclick="openExamSetupWithPin(event)">
+            <i class="bi bi-lock-fill me-1" id="examTabLockIcon"></i>Online Exam Setup
+          </a>
+        </li>
+      </ul>
+
+      <div class="tab-content">
+        <!-- 1. REGISTER EMPLOYEE -->
+        <div class="tab-pane fade show active" id="createEmp">
+          <form id="formCreate" onsubmit="handleEmpSubmit(event, 'create')" novalidate>
+            <div class="row g-3">
+              <div class="col-md-3"><label class="fw-bold">Employee ID *</label><input type="text" class="form-control" name="code" placeholder="e.g. UT-001" required></div>
+              <div class="col-md-3"><label class="fw-bold">Full Name *</label><input type="text" class="form-control" name="name" required></div>
+              <div class="col-md-3"><label class="fw-bold text-primary">Father Name</label><input type="text" class="form-control border-primary" name="fatherName" placeholder="e.g. U Aung"></div>
+              <div class="col-md-3"><label class="fw-bold text-primary">NRC No.</label><input type="text" class="form-control border-primary" name="nrc" placeholder="e.g. 12/YaKaNa(N)123456"></div>
+
+              <div class="col-md-3"><label class="fw-bold text-danger">Login Username *</label><input type="text" class="form-control border-danger" name="username" required></div>
+              <div class="col-md-3">
+                <label class="fw-bold text-danger">Login Password *</label>
+                <div class="input-group">
+                  <input type="password" class="form-control border-danger" name="password" id="createPass" required>
+                  <button type="button" class="btn btn-outline-secondary" onclick="togglePassField('createPass', this)"><i class="bi bi-eye"></i></button>
+                </div>
+              </div>
+              <div class="col-md-3"><label class="fw-bold">Department *</label><select class="form-select dept-dropdown" name="dept" onchange="updateSubAndPos(this, 'create')" required></select></div>
+              <div class="col-md-3"><label class="fw-bold">Sub-Department</label><select class="form-select sub-dept-dropdown" name="subDept"><option value="">Select Dept First</option></select></div>
+
+              <div class="col-md-3"><label class="fw-bold">Position</label><select class="form-select create-position" name="position"><option value="">Select Dept First</option></select></div>
+              <div class="col-md-3"><label class="fw-bold">Profile Photo</label><input type="file" class="form-control" id="photoFile" accept="image/*"></div>
+              <div class="col-md-3"><label class="fw-bold">Phone</label><input type="text" class="form-control" name="phone"></div>
+              <div class="col-md-3"><label class="fw-bold">Email</label><input type="email" class="form-control" name="email"></div>
+
+              <div class="col-md-3"><label class="fw-bold text-success">Join Date</label><input type="date" class="form-control border-success" name="joinDate"></div>
+              <div class="col-md-3"><label class="fw-bold text-info text-dark">Insurance Policy No.</label><input type="text" class="form-control border-info" name="insPolicyNo" placeholder="Policy Number"></div>
+              <div class="col-md-2"><label class="fw-bold text-info text-dark">Insurance Valid Date</label><input type="date" class="form-control border-info" name="insValidDate"></div>
+              <div class="col-md-2"><label class="fw-bold text-primary">SSB ID</label><input type="text" class="form-control border-primary" name="ssbId" placeholder="SSB No."></div>
+              <div class="col-md-2"><label class="fw-bold text-primary">Tax ID</label><input type="text" class="form-control border-primary" name="taxId" placeholder="Tax No."></div>
+
+              <div class="col-md-12">
+                <label class="fw-bold">Address</label>
+                <input type="text" class="form-control" name="address" placeholder="Enter full residential address...">
+              </div>
+
+              <div class="col-md-12">
+                <div class="p-3 bg-light border border-warning rounded">
+                  <label class="fw-bold text-dark mb-2"><i class="bi bi-calendar2-check text-warning"></i> Opening Leave Balances (Initial Leave Quotas for Current Year)</label>
+                  <div class="row g-2" id="createOpeningLeavesBox">
+                    <div class="text-muted small">Loading leave types...</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6"><label class="fw-bold">Bio / Skills</label><textarea class="form-control" name="bio" rows="3" placeholder="Skills, qualifications..."></textarea></div>
+              <div class="col-md-6"><label class="fw-bold">Internal Remarks</label><textarea class="form-control" name="remark" rows="3" placeholder="Additional HR details..."></textarea></div>
+            </div>
+            <button type="submit" class="btn btn-primary mt-3 px-4 fw-bold" id="btnCreate">Register Profile</button>
+          </form>
+        </div>
+
+        <!-- 2. EDIT EMPLOYEE PROFILE -->
+        <div class="tab-pane fade" id="editEmp">
+          <form id="formEdit" onsubmit="handleEmpSubmit(event, 'edit')" novalidate>
+            <input type="hidden" id="originalDocId" value="">
+            <input type="hidden" id="originalEmpCode" value="">
+
+            <div class="row g-3 mb-3 bg-light p-2 rounded">
+              <div class="col-md-5">
+                <label class="fw-bold">Select Employee to Edit</label>
+                <select class="form-select border-primary" id="editEmpSelect" onchange="fetchEmpData()"></select>
+              </div>
+              <div class="col-md-3 align-self-end" id="statusContainer" style="display:none;">
+                <label class="fw-bold text-dark mb-2">Employment Status</label>
+                <div class="form-check form-switch fs-5">
+                  <input class="form-check-input border-secondary" type="checkbox" id="statusToggle" name="status" checked>
+                  <label class="form-check-label fw-bold text-success" for="statusToggle" id="statusLabel">Active</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3" id="editFields" style="display:none;">
+              <div class="col-md-3">
+                <label class="fw-bold text-primary">Employee ID (Code) *</label>
+                <input type="text" class="form-control border-primary fw-bold" name="code" id="editCodeInput" required>
+              </div>
+              <div class="col-md-3"><label class="fw-bold">Full Name *</label><input type="text" class="form-control" name="name" required></div>
+              <div class="col-md-3"><label class="fw-bold text-primary">Father Name</label><input type="text" class="form-control border-primary" name="fatherName"></div>
+              <div class="col-md-3"><label class="fw-bold text-primary">NRC No.</label><input type="text" class="form-control border-primary" name="nrc"></div>
+
+              <div class="col-md-3"><label class="fw-bold text-danger">Login Username *</label><input type="text" class="form-control border-danger" name="username" required></div>
+              <div class="col-md-3">
+                <label class="fw-bold text-danger">Login Password *</label>
+                <div class="input-group">
+                  <input type="password" class="form-control border-danger" name="password" id="editPass" required>
+                  <button type="button" class="btn btn-outline-secondary" onclick="togglePassField('editPass', this)"><i class="bi bi-eye"></i></button>
+                </div>
+              </div>
+              <div class="col-md-3"><label class="fw-bold">Department</label><select class="form-select dept-dropdown" name="dept" onchange="updateSubAndPos(this, 'edit')"></select></div>
+              <div class="col-md-3"><label class="fw-bold">Sub-Department</label><select class="form-select sub-dept-dropdown" name="subDept"></select></div>
+
+              <div class="col-md-3"><label class="fw-bold">Position</label><select class="form-select edit-position" name="position"></select></div>
+              <div class="col-md-3"><label class="fw-bold">Phone</label><input type="text" class="form-control" name="phone"></div>
+              <div class="col-md-3"><label class="fw-bold">Email</label><input type="email" class="form-control" name="email"></div>
+              <div class="col-md-3"><label class="fw-bold text-success">Join Date</label><input type="date" class="form-control border-success" name="joinDate"></div>
+
+              <div class="col-md-3"><label class="fw-bold text-primary">SSB ID</label><input type="text" class="form-control border-primary" name="ssbId"></div>
+              <div class="col-md-3"><label class="fw-bold text-primary">Tax ID</label><input type="text" class="form-control border-primary" name="taxId"></div>
+              <div class="col-md-2"><label class="fw-bold text-info text-dark">Insurance Policy No.</label><input type="text" class="form-control border-info" name="insPolicyNo"></div>
+              <div class="col-md-2"><label class="fw-bold text-info text-dark">Insurance Valid Date</label><input type="date" class="form-control border-info" name="insValidDate"></div>
+              <div class="col-md-1 text-center">
+                <label class="fw-bold small">Photo</label><br>
+                <img id="editEmpThumbnail" src="" style="max-height: 45px; display: none; border-radius: 5px; margin: 0 auto;">
+                <span id="noImageText" class="text-muted small" style="display:none;">None</span>
+              </div>
+              <div class="col-md-1"><label class="fw-bold small">New Photo</label><input type="file" class="form-control form-control-sm" id="editPhotoFile" accept="image/*"></div>
+
+              <div class="col-md-12">
+                <label class="fw-bold">Address</label>
+                <input type="text" class="form-control" name="address" placeholder="Enter full residential address...">
+              </div>
+
+              <div class="col-md-12">
+                <div class="p-3 bg-light border border-warning rounded">
+                  <label class="fw-bold text-dark mb-2"><i class="bi bi-calendar2-check text-warning"></i> Opening Leave Balances (Edit Leave Quotas for Current Year)</label>
+                  <div class="row g-2" id="editOpeningLeavesBox">
+                    <div class="text-muted small">Loading leave types...</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6"><label class="fw-bold">Bio / Skills</label><textarea class="form-control" name="bio" rows="3"></textarea></div>
+              <div class="col-md-6"><label class="fw-bold">Internal Remarks</label><textarea class="form-control" name="remark" rows="3"></textarea></div>
+
+              <input type="hidden" name="photoUrl" id="existingPhotoUrl">
+              <div class="col-md-12">
+                <button type="submit" class="btn btn-success px-5 fw-bold py-2 shadow-sm" id="btnEdit">
+                  <i class="bi bi-check2-circle"></i> Update Profile
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- 3. JOB & SYSTEM SETTINGS -->
+        <div class="tab-pane fade" id="settings">
+
+          <!-- (1) Departments & Sub-Departments -->
+          <div class="card border p-3 mb-4 bg-light">
+            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-diagram-3-fill text-primary"></i> 1. Departments & Sub-Departments</h6>
+            <form id="formDept" onsubmit="submitDeptForm(event)" class="mb-3">
+              <input type="hidden" id="editDeptDocId">
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <label class="fw-bold small">Main Department</label>
+                  <input list="mainDeptList" id="deptMainInput" class="form-control form-control-sm border-primary" placeholder="e.g., Operations" required>
+                  <datalist id="mainDeptList"></datalist>
+                </div>
+                <div class="col-md-4">
+                  <label class="fw-bold small">Sub-Department</label>
+                  <input type="text" id="deptSubInput" class="form-control form-control-sm border-primary" placeholder="e.g., Logistics" required>
+                </div>
+                <div class="col-md-4 align-self-end d-flex gap-2">
+                  <button type="submit" id="btnDeptSubmit" class="btn btn-primary btn-sm w-100 fw-bold">Add Division</button>
+                  <button type="button" id="btnDeptCancel" class="btn btn-secondary btn-sm" style="display:none;" onclick="cancelDeptEdit()">Cancel</button>
+                </div>
+              </div>
+            </form>
+            <div class="setting-list-box">
+              <table class="table table-sm table-bordered table-hover mb-0 align-middle text-center small">
+                <thead class="table-secondary sticky-top">
+                  <tr><th width="10%">#</th><th width="35%">Main Department</th><th width="35%">Sub-Department</th><th width="20%">Actions</th></tr>
+                </thead>
+                <tbody id="deptListBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- (2) Job Positions by Department -->
+          <div class="card border p-3 mb-4 bg-light">
+            <h6 class="fw-bold text-primary mb-3"><i class="bi bi-briefcase-fill"></i> 2. Job Positions by Department</h6>
+            <form onsubmit="addSettingPair(event)" class="mb-3">
+              <input type="hidden" id="editPosDocId">
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <label class="fw-bold small">Department</label>
+                  <select id="pairDept" class="form-select form-select-sm border-primary" required></select>
+                </div>
+                <div class="col-md-4">
+                  <label class="fw-bold small">Job Position</label>
+                  <input type="text" id="pairPos" class="form-control form-control-sm border-primary" placeholder="e.g. Senior Analyst" required>
+                </div>
+                <div class="col-md-4 align-self-end d-flex gap-2">
+                  <button type="submit" id="btnPosSubmit" class="btn btn-primary btn-sm w-100 fw-bold">Add Position</button>
+                  <button type="button" id="btnPosCancel" class="btn btn-secondary btn-sm" style="display:none;" onclick="cancelPosEdit()">Cancel</button>
+                </div>
+              </div>
+            </form>
+            <div class="setting-list-box">
+              <table class="table table-sm table-bordered table-hover mb-0 align-middle text-center small">
+                <thead class="table-secondary sticky-top">
+                  <tr><th width="10%">#</th><th width="35%">Department</th><th width="35%">Job Position</th><th width="20%">Actions</th></tr>
+                </thead>
+                <tbody id="posListBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- (3) System Types (For HR Transactions) -->
+          <div class="card border p-3 mb-4 bg-light">
+            <h6 class="fw-bold text-success mb-3"><i class="bi bi-sliders"></i> 3. System Types (For HR Transactions)</h6>
+            <form onsubmit="addTransactionSysType(event)" class="mb-3">
+              <input type="hidden" id="editSysTypeDocId">
+              <div class="row g-2">
+                <div class="col-md-5">
+                  <label class="fw-bold small">System / Transaction Type Name</label>
+                  <input type="text" id="transTypeName" class="form-control form-control-sm border-success" placeholder="e.g. BONUS, KPI REWARD, LATE WARNING" required>
+                </div>
+                <div class="col-md-4">
+                  <label class="fw-bold small">Score Effect</label>
+                  <select id="transTypeEffect" class="form-select form-select-sm border-success">
+                    <option value="+">Add Points (+ Merit)</option>
+                    <option value="-">Deduct Points (- Demerit)</option>
+                    <option value="0">Neutral / Record Only (0)</option>
+                  </select>
+                </div>
+                <div class="col-md-3 align-self-end d-flex gap-2">
+                  <button type="submit" id="btnSysTypeSubmit" class="btn btn-success btn-sm w-100 fw-bold">Add System Type</button>
+                  <button type="button" id="btnSysTypeCancel" class="btn btn-secondary btn-sm" style="display:none;" onclick="cancelSysTypeEdit()">Cancel</button>
+                </div>
+              </div>
+            </form>
+            <div class="setting-list-box">
+              <table class="table table-sm table-bordered table-hover mb-0 align-middle text-center small">
+                <thead class="table-secondary sticky-top">
+                  <tr><th width="10%">#</th><th width="45%">System / Transaction Type</th><th width="25%">Score Effect</th><th width="20%">Actions</th></tr>
+                </thead>
+                <tbody id="sysTypeListBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- (4) Leave Types & Allowed Days + Year-End Reset Button -->
+          <div class="card border p-3 mb-4 bg-light">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+              <h6 class="fw-bold text-dark mb-0"><i class="bi bi-calendar-check-fill text-warning"></i> 4. Leave Types & Default Allowed Days</h6>
+              <button type="button" class="btn btn-sm btn-danger fw-bold shadow-sm" onclick="resetAllEmployeesLeaveForNewYear()">
+                <i class="bi bi-arrow-repeat"></i> Year-End Reset (Reset All Employees to Default Quotas)
+              </button>
+            </div>
+            <form onsubmit="addLeaveTypeSetting(event)" class="mb-3">
+              <input type="hidden" id="editLeaveTypeDocId">
+              <div class="row g-2">
+                <div class="col-md-5">
+                  <label class="fw-bold small">Leave Type Name</label>
+                  <input type="text" id="leaveTypeName" class="form-control form-control-sm border-warning" placeholder="e.g. Casual Leave, Medical Leave" required>
+                </div>
+                <div class="col-md-4">
+                  <label class="fw-bold small">Default Allowed Days Per Year</label>
+                  <input type="number" id="leaveAllowedDays" class="form-control form-control-sm border-warning" min="1" placeholder="e.g. 10" required>
+                </div>
+                <div class="col-md-3 align-self-end d-flex gap-2">
+                  <button type="submit" id="btnLeaveTypeSubmit" class="btn btn-warning btn-sm w-100 fw-bold">Save Leave Type</button>
+                  <button type="button" id="btnLeaveTypeCancel" class="btn btn-secondary btn-sm" style="display:none;" onclick="cancelLeaveTypeEdit()">Cancel</button>
+                </div>
+              </div>
+            </form>
+            <div class="setting-list-box">
+              <table class="table table-sm table-bordered table-hover mb-0 align-middle text-center small">
+                <thead class="table-secondary sticky-top">
+                  <tr><th width="10%">#</th><th width="45%">Leave Type Name</th><th width="25%">Default Allowed Days</th><th width="20%">Actions</th></tr>
+                </thead>
+                <tbody id="leaveTypeListBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- (5) Office GPS & Work Time Settings -->
+          <div class="card border p-3 mb-4 bg-light">
+            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-geo-alt-fill text-info"></i> 5. Office GPS & Work Time Settings</h6>
+            <form onsubmit="addSystemSetting(event)" class="mb-3">
+              <input type="hidden" id="editOfficeDocId">
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <label class="fw-bold small">Setting Category</label>
+                  <select id="sysCat" class="form-select form-select-sm border-info" required>
+                    <option value="Office Lat">Office Lat (e.g. 16.8409)</option>
+                    <option value="Office Lng">Office Lng (e.g. 96.1735)</option>
+                    <option value="Geo Radius">Geo Radius in Meters (e.g. 200)</option>
+                    <option value="Work Start">Work Start Time (e.g. 09:00)</option>
+                    <option value="Work End">Work End Time (e.g. 17:00)</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="fw-bold small">Value</label>
+                  <input type="text" id="sysVal" class="form-control form-control-sm border-info" required>
+                </div>
+                <div class="col-md-4 align-self-end d-flex gap-2">
+                  <button type="submit" id="btnOfficeSubmit" class="btn btn-info text-white btn-sm w-100 fw-bold">Save Office Setting</button>
+                  <button type="button" id="btnOfficeCancel" class="btn btn-secondary btn-sm" style="display:none;" onclick="cancelOfficeEdit()">Cancel</button>
+                </div>
+              </div>
+            </form>
+            <div class="setting-list-box">
+              <table class="table table-sm table-bordered table-hover mb-0 align-middle text-center small">
+                <thead class="table-secondary sticky-top">
+                  <tr><th width="10%">#</th><th width="45%">Setting Category</th><th width="25%">Configured Value</th><th width="20%">Actions</th></tr>
+                </thead>
+                <tbody id="officeSettingListBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- (6) Attendance Time Status Rules -->
+          <div class="card border border-danger p-3 bg-light">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+              <h6 class="fw-bold text-danger mb-0"><i class="bi bi-clock-history"></i> 6. Attendance Time Status Rules (Check-In & Check-Out Thresholds)</h6>
+              <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="loadDefaultTimeRules()">
+                <i class="bi bi-magic"></i> Load Default Rules
+              </button>
+            </div>
+            <div class="small text-muted mb-3">
+              - <b>Check-In</b> rules are relative to <code>Work Start</code> time, and <b>Check-Out</b> rules are relative to <code>Work End</code> time.
+            </div>
+
+            <form id="formTimeRule" onsubmit="saveAttendanceRule(event)" class="mb-3">
+              <input type="hidden" id="editTimeRuleDocId">
+              <div class="row g-2 align-items-end">
+                <div class="col-md-2">
+                  <label class="fw-bold small">Action Type</label>
+                  <select id="trAction" class="form-select form-select-sm border-danger" required>
+                    <option value="Check-In">Check-In</option>
+                    <option value="Check-Out">Check-Out</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="fw-bold small">From Min</label>
+                  <input type="number" id="trMin" class="form-control form-control-sm border-danger" placeholder="e.g. -999 or 6" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="fw-bold small">To Min</label>
+                  <input type="number" id="trMax" class="form-control form-control-sm border-danger" placeholder="e.g. 5 or 15" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="fw-bold small">Status Label</label>
+                  <input type="text" id="trLabel" class="form-control form-control-sm border-danger" placeholder="e.g. Small Late" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="fw-bold small">Badge Color & Mins</label>
+                  <div class="input-group input-group-sm">
+                    <select id="trColor" class="form-select border-danger">
+                      <option value="text-success">Green (On Time)</option>
+                      <option value="text-warning">Yellow (Warning)</option>
+                      <option value="text-danger">Red (Late/Alert)</option>
+                      <option value="text-primary">Blue (Overtime)</option>
+                    </select>
+                    <div class="input-group-text bg-white" title="Show minutes in brackets e.g. Small Late (10m)">
+                      <input class="form-check-input mt-0" type="checkbox" id="trShowMins">
+                      <span class="ms-1 small">+m</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-2 d-flex gap-1">
+                  <button type="submit" id="btnTimeRuleSubmit" class="btn btn-danger btn-sm w-100 fw-bold">Save Rule</button>
+                  <button type="button" id="btnTimeRuleCancel" class="btn btn-secondary btn-sm" style="display:none;" onclick="cancelTimeRuleEdit()">Cancel</button>
+                </div>
+              </div>
+            </form>
+
+            <div class="setting-list-box">
+              <table class="table table-sm table-bordered table-hover mb-0 align-middle text-center small">
+                <thead class="table-dark sticky-top">
+                  <tr>
+                    <th width="8%">#</th>
+                    <th width="16%">Action Type</th>
+                    <th width="22%">Minute Range (Relative to Work Time)</th>
+                    <th width="24%">Status Label</th>
+                    <th width="14%">Show Mins (+m)</th>
+                    <th width="16%">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="timeRuleListBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 4. ONLINE EXAM SETUP (PIN PROTECTED) -->
+        <div class="tab-pane fade" id="examSetup">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 bg-light p-2 rounded border">
+            <div class="small text-muted fw-bold">
+              <i class="bi bi-shield-lock-fill text-danger"></i> Protected Exam Administration Area
+            </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-outline-dark fw-bold" onclick="changeExamPinPrompt()">
+                <i class="bi bi-key-fill text-warning"></i> Change PIN
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="lockExamSetupTabNow()">
+                <i class="bi bi-lock-fill"></i> Lock Tab
+              </button>
+            </div>
+          </div>
+
+          <div class="row g-4">
+            <div class="col-lg-7">
+              <div class="card border p-3 bg-light">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h5 class="fw-bold text-danger mb-0"><i class="bi bi-sliders"></i> Create / Configure Test Session</h5>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetExamForm()">New / Clear Form</button>
+                </div>
+
+                <form id="formExamSetup" onsubmit="saveExamSession(event)">
+                  <div class="row g-3">
+                    <div class="col-md-4">
+                      <label class="fw-bold small">Exam Code / ID</label>
+                      <input type="text" id="exId" class="form-control border-danger fw-bold" placeholder="e.g. SCM-2026" required>
+                    </div>
+                    <div class="col-md-8">
+                      <label class="fw-bold small">Subject / Course Title</label>
+                      <input type="text" id="exTitle" class="form-control border-danger" placeholder="e.g. Supply Chain Management Assessment" required>
+                    </div>
+
+                    <div class="col-md-12">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="fw-bold small text-primary">Target Employees (Select Candidates)</label>
+                        <div class="d-flex gap-2 align-items-center">
+                          <input type="text" id="empTargetSearch" class="form-control form-control-sm" style="width: 180px;" placeholder="Search employee..." oninput="filterExamTargetEmps()">
+                          <div class="form-check mb-0 small">
+                            <input class="form-check-input" type="checkbox" id="chkAllEmps" checked onchange="toggleSelectAllExamEmps(this)">
+                            <label class="form-check-label fw-bold text-danger" for="chkAllEmps">Select All</label>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="emp-multi-box" id="exTargetEmpList">
+                        <div class="text-muted small">Loading active employees...</div>
+                      </div>
+                    </div>
+
+                    <div class="col-md-4">
+                      <label class="fw-bold small">Random Questions Count</label>
+                      <input type="number" id="exQCount" class="form-control" value="20" min="1" required>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="fw-bold small">Points per Question</label>
+                      <input type="number" id="exPoints" class="form-control" value="5" min="1" required>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="fw-bold small">Passing Score</label>
+                      <input type="number" id="exPass" class="form-control" value="50" min="1" required>
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="fw-bold small">Time Limit (Minutes)</label>
+                      <input type="number" id="exTimer" class="form-control" value="45" min="0" placeholder="0 = No Limit" required>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="fw-bold small">Status</label>
+                      <select id="exStatus" class="form-select fw-bold text-success">
+                        <option value="Active">Active (Open for Candidates)</option>
+                        <option value="Closed">Closed (Inactive)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <hr class="my-3">
+
+                  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                    <h6 class="fw-bold mb-0 text-primary">Question Bank (<span id="qBankCount">0</span> Questions Loaded)</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                      <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="downloadSampleExamExcel()">
+                        <i class="bi bi-download"></i> Download Template
+                      </button>
+                      <label class="btn btn-sm btn-success mb-0 fw-bold">
+                        <i class="bi bi-file-earmark-excel"></i> Import Excel
+                        <input type="file" id="excelQInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importQuestionsExcel(event)">
+                      </label>
+                      <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearQuestionBank()">Clear All</button>
+                    </div>
+                  </div>
+
+                  <div class="card p-2 mb-3 border-primary bg-white">
+                    <div class="fw-bold small text-primary mb-2">+ Add Single Question Manually</div>
+                    <input type="text" id="mqText" class="form-control form-control-sm mb-2" placeholder="Enter question text...">
+                    <div class="row g-2 mb-2">
+                      <div class="col-6"><input type="text" id="mqOpt0" class="form-control form-control-sm" placeholder="Option A"></div>
+                      <div class="col-6"><input type="text" id="mqOpt1" class="form-control form-control-sm" placeholder="Option B"></div>
+                      <div class="col-6"><input type="text" id="mqOpt2" class="form-control form-control-sm" placeholder="Option C"></div>
+                      <div class="col-6"><input type="text" id="mqOpt3" class="form-control form-control-sm" placeholder="Option D"></div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="small fw-bold">Correct Answer:</span>
+                        <select id="mqAns" class="form-select form-select-sm" style="width:120px;">
+                          <option value="0">Option A</option>
+                          <option value="1">Option B</option>
+                          <option value="2">Option C</option>
+                          <option value="3">Option D</option>
+                        </select>
+                      </div>
+                      <button type="button" class="btn btn-sm btn-primary" onclick="addManualQuestion()">Add to Pool</button>
+                    </div>
+                  </div>
+
+                  <div class="q-preview-box mb-3" id="qPreviewContainer">
+                    <div class="text-muted small text-center py-4">No questions in pool yet. Import an Excel file or add questions manually above.</div>
+                  </div>
+
+                  <button type="submit" class="btn btn-danger w-100 fw-bold py-2"><i class="bi bi-cloud-check-fill"></i> Save Test Session & Publish</button>
+                </form>
+              </div>
+            </div>
+
+            <div class="col-lg-5">
+              <div class="card border p-3 h-100">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-collection-play"></i> Configured Test Sessions</h5>
+                <div class="table-responsive">
+                  <table class="table table-sm table-bordered table-hover align-middle text-center">
+                    <thead class="table-dark">
+                      <tr>
+                        <th>Exam ID & Title</th>
+                        <th>Target Emps</th>
+                        <th>Config</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="examSessionsBody">
+                      <tr><td colspan="5" class="text-muted py-3">Loading exams...</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
+      authDomain: "my-apps-a87a3.firebaseapp.com",
+      projectId: "my-apps-a87a3",
+      storageBucket: "my-apps-a87a3.firebasestorage.app",
+      messagingSenderId: "880270085984",
+      appId: "1:880270085984:web:94d1895bd28335abaf1805"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    db.settings({ experimentalAutoDetectLongPolling: true });
+
+    // ==================== SHARED ADMIN QUOTA-SAVER ENGINE (WITH REST WRITE FALLBACK) ====================
+    (function installAdminQuotaSaver(dbInstance) {
+      const CACHE_TTL = 15 * 60 * 1000;
+      window._utMemCache = window._utMemCache || {};
+      window._utListeners = window._utListeners || {};
+      const origCollection = dbInstance.collection.bind(dbInstance);
+
+      function parseRestVal(v) {
+        if (!v || typeof v !== 'object') return v;
+        if (v.stringValue !== undefined) return v.stringValue;
+        if (v.integerValue !== undefined) return Number(v.integerValue);
+        if (v.doubleValue !== undefined) return Number(v.doubleValue);
+        if (v.booleanValue !== undefined) return Boolean(v.booleanValue);
+        if (v.nullValue !== undefined) return null;
+        if (v.arrayValue !== undefined) return (v.arrayValue.values || []).map(parseRestVal);
+        if (v.mapValue !== undefined) {
+          const obj = {};
+          const f = v.mapValue.fields || {};
+          Object.keys(f).forEach(k => { obj[k] = parseRestVal(f[k]); });
+          return obj;
+        }
+        return '';
+      }
+
+      function toRestVal(v) {
+        if (v === null || v === undefined) return { nullValue: null };
+        if (typeof v === 'boolean') return { booleanValue: v };
+        if (typeof v === 'number') {
+          return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+        }
+        if (Array.isArray(v)) return { arrayValue: { values: v.map(toRestVal) } };
+        if (typeof v === 'object') return { mapValue: { fields: toRestFields(v) } };
+        return { stringValue: String(v) };
+      }
+
+      function toRestFields(obj) {
+        const fields = {};
+        Object.keys(obj).forEach(k => {
+          if (k !== '_docId' && k !== 'docId') {
+            fields[k] = toRestVal(obj[k]);
+          }
+        });
+        return fields;
+      }
+
+      function getCache(col) {
+        try {
+          const raw = sessionStorage.getItem('ut_admin_cache_' + col);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Date.now() - parsed.ts < CACHE_TTL) return parsed.items;
+          }
+        } catch (e) {}
+        return window._utMemCache[col] || null;
+      }
+
+      function setCache(col, items) {
+        window._utMemCache[col] = items;
+        try {
+          sessionStorage.setItem('ut_admin_cache_' + col, JSON.stringify({ ts: Date.now(), items: items }));
+        } catch (e) {}
+      }
+
+      function makeSnap(col, items) {
+        const origCol = origCollection(col);
+        const docs = (items || []).map(item => {
+          const docId = item._docId || item.id || item.docId || item.code || item.exam_id || '';
+          const clean = Object.assign({}, item);
+          delete clean._docId;
+          return {
+            id: docId,
+            exists: true,
+            data: () => Object.assign({}, clean),
+            ref: wrapDocRef(col, docId, origCol.doc(docId))
+          };
+        });
+        return {
+          empty: docs.length === 0,
+          size: docs.length,
+          docs: docs,
+          forEach: fn => docs.forEach(fn),
+          metadata: { fromCache: false, hasPendingWrites: false }
+        };
+      }
+
+      function notifyListeners(col, items) {
+        const snap = makeSnap(col, items);
+        (window._utListeners[col] || []).forEach(cb => {
+          try { cb(snap); } catch (e) {}
+        });
+      }
+
+      async function restPatchDoc(col, docId, mergedData) {
+        const url = "https://firestore.googleapis.com/v1/projects/" + firebaseConfig.projectId + "/databases/(default)/documents/" + col + "/" + encodeURIComponent(docId) + "?key=" + firebaseConfig.apiKey;
+        const res = await fetch(url, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: toRestFields(mergedData) })
+        });
+        if (!res.ok) throw new Error("Database write failed (HTTP " + res.status + ")");
+      }
+
+      function wrapDocRef(col, docId, realDocRef) {
+        return {
+          id: docId,
+          get: () => realDocRef.get(),
+          set: async (data, opts) => {
+            let list = getCache(col) || [];
+            const idx = list.findIndex(x => String(x._docId || x.id || x.docId || x.code || x.exam_id) === String(docId));
+            const merged = Object.assign({}, idx >= 0 ? list[idx] : {}, data, { _docId: docId });
+
+            try {
+              const sdkP = realDocRef.set(data, Object.assign({ merge: true }, opts || {}));
+              const timeP = new Promise((_, rej) => setTimeout(() => rej(new Error("TIMEOUT")), 4500));
+              await Promise.race([sdkP, timeP]);
+            } catch (err) {
+              await restPatchDoc(col, docId, merged);
+            }
+
+            if (idx >= 0) list[idx] = merged; else list.push(merged);
+            setCache(col, list);
+            notifyListeners(col, list);
+          },
+          update: async (data) => {
+            let list = getCache(col) || [];
+            const idx = list.findIndex(x => String(x._docId || x.id || x.docId || x.code || x.exam_id) === String(docId));
+            const merged = Object.assign({}, idx >= 0 ? list[idx] : {}, data, { _docId: docId });
+
+            try {
+              // Use .set(..., { merge: true }) so it never fails with "No document to update"
+              const sdkP = realDocRef.set(data, { merge: true });
+              const timeP = new Promise((_, rej) => setTimeout(() => rej(new Error("TIMEOUT")), 4500));
+              await Promise.race([sdkP, timeP]);
+            } catch (err) {
+              await restPatchDoc(col, docId, merged);
+            }
+
+            if (idx >= 0) list[idx] = merged; else list.push(merged);
+            setCache(col, list);
+            notifyListeners(col, list);
+          },
+          delete: async () => {
+            try {
+              const sdkP = realDocRef.delete();
+              const timeP = new Promise((_, rej) => setTimeout(() => rej(new Error("TIMEOUT")), 4500));
+              await Promise.race([sdkP, timeP]);
+            } catch (err) {
+              const url = "https://firestore.googleapis.com/v1/projects/" + firebaseConfig.projectId + "/databases/(default)/documents/" + col + "/" + encodeURIComponent(docId) + "?key=" + firebaseConfig.apiKey;
+              await fetch(url, { method: 'DELETE' });
+            }
+            let list = (getCache(col) || []).filter(x => String(x._docId || x.id || x.docId || x.code || x.exam_id) !== String(docId));
+            setCache(col, list);
+            notifyListeners(col, list);
+          }
+        };
+      }
+
+      async function loadCol(col, force = false) {
+        if (!force) {
+          const cached = getCache(col);
+          if (cached) return makeSnap(col, cached);
+        }
+        try {
+          const sdkPromise = origCollection(col).get();
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 5000));
+          const snap = await Promise.race([sdkPromise, timeoutPromise]);
+          const items = snap.docs.map(d => Object.assign({ _docId: d.id }, d.data()));
+          setCache(col, items);
+          return makeSnap(col, items);
+        } catch (err) {
+          const url = "https://firestore.googleapis.com/v1/projects/" + firebaseConfig.projectId + "/databases/(default)/documents/" + col + "?pageSize=500&key=" + firebaseConfig.apiKey;
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const data = await res.json();
+          const items = (data.documents || []).map(doc => {
+            const id = doc.name ? doc.name.split('/').pop() : '';
+            const obj = { _docId: id };
+            Object.keys(doc.fields || {}).forEach(k => { obj[k] = parseRestVal(doc.fields[k]); });
+            return obj;
+          });
+          setCache(col, items);
+          return makeSnap(col, items);
+        }
+      }
+
+      function createCachedQuery(colName, filters) {
+        return {
+          where: function(field, op, val) {
+            return createCachedQuery(colName, filters.concat([{ field, op, val }]));
+          },
+          get: async function() {
+            const snap = await loadCol(colName, false);
+            const filteredDocs = snap.docs.filter(d => {
+              const data = d.data();
+              return filters.every(f => f.op === '==' ? data[f.field] === f.val : true);
+            });
+            return {
+              empty: filteredDocs.length === 0,
+              size: filteredDocs.length,
+              docs: filteredDocs,
+              forEach: fn => filteredDocs.forEach(fn)
+            };
+          }
+        };
+      }
+
+      dbInstance.collection = function(colName) {
+        const realCol = origCollection(colName);
+        return {
+          get: (opts) => loadCol(colName, Boolean(opts && opts.source === 'server')),
+          onSnapshot: function(a, b, c) {
+            const cb = typeof a === 'function' ? a : b;
+            const errCb = typeof a === 'function' ? b : c;
+            window._utListeners[colName] = window._utListeners[colName] || [];
+            window._utListeners[colName].push(cb);
+            loadCol(colName, false).then(snap => cb(snap)).catch(err => { if (errCb) errCb(err); });
+            return function() {};
+          },
+          add: async function(data) {
+            let newId = '';
+            try {
+              const sdkP = realCol.add(data);
+              const timeP = new Promise((_, rej) => setTimeout(() => rej(new Error("TIMEOUT")), 4500));
+              const ref = await Promise.race([sdkP, timeP]);
+              newId = ref.id;
+            } catch (err) {
+              const url = "https://firestore.googleapis.com/v1/projects/" + firebaseConfig.projectId + "/databases/(default)/documents/" + colName + "?key=" + firebaseConfig.apiKey;
+              const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fields: toRestFields(data) })
+              });
+              if (!res.ok) throw new Error("Failed to add document (HTTP " + res.status + ")");
+              const saved = await res.json();
+              newId = saved.name ? saved.name.split('/').pop() : ('doc_' + Date.now());
+            }
+            let list = getCache(colName) || [];
+            list.push(Object.assign({}, data, { _docId: newId }));
+            setCache(colName, list);
+            notifyListeners(colName, list);
+            return { id: newId };
+          },
+          doc: function(docId) {
+            return wrapDocRef(colName, String(docId), realCol.doc(String(docId)));
+          },
+          where: function(field, op, val) {
+            return createCachedQuery(colName, [{ field, op, val }]);
+          }
+        };
+      };
+
+      window.forceSyncAll = async function() {
+        const badge = document.getElementById('connStatus');
+        if (badge) {
+          badge.className = 'badge bg-warning text-dark me-2';
+          badge.innerHTML = '<i class="bi bi-arrow-repeat"></i> Syncing...';
+        }
+        const cols = Object.keys(window._utListeners);
+        for (const c of cols) {
+          try {
+            const snap = await loadCol(c, true);
+            (window._utListeners[c] || []).forEach(cb => cb(snap));
+          } catch (e) {}
+        }
+        if (badge) {
+          badge.className = 'badge bg-success me-2';
+          badge.innerHTML = '<i class="bi bi-wifi"></i> Synced';
+        }
+      };
+    })(db);
+
+    let appData = { emps: [], depts: [], deptDocs: [], settingsDocs: [], settings: { departments: {}, leaveTypes: [] }, exams: [] };
+    let currentQuestionBank = [];
+
+    // ==================== PIN PROTECTION FOR ONLINE EXAM SETUP TAB ====================
+    let examSetupUnlocked = false;
+    let configuredExamPin = "1234";
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('#mainDirTabs a[data-bs-toggle="tab"]').forEach(tabEl => {
+        tabEl.addEventListener('shown.bs.tab', () => {
+          examSetupUnlocked = false;
+          const icon = document.getElementById('examTabLockIcon');
+          if (icon) icon.className = 'bi bi-lock-fill me-1';
+        });
+      });
+    });
+
+    async function openExamSetupWithPin(e) {
+      e.preventDefault();
+      const tabLink = document.getElementById('examSetupTabLink');
+
+      if (examSetupUnlocked) {
+        bootstrap.Tab.getOrCreateInstance(tabLink).show();
+        return;
+      }
+
+      const { value: enteredPin } = await Swal.fire({
+        title: 'Enter Exam Setup PIN',
+        text: 'Please enter the PIN code to access Online Exam Setup.',
+        input: 'password',
+        inputPlaceholder: 'Enter PIN code...',
+        inputAttributes: {
+          maxlength: 20,
+          autocapitalize: 'off',
+          autocorrect: 'off'
+        },
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#601a1a',
+        confirmButtonText: '<i class="bi bi-unlock-fill"></i> Unlock',
+        cancelButtonText: 'Cancel'
+      });
+
+      if (enteredPin === undefined) return;
+
+      if (String(enteredPin).trim() === String(configuredExamPin).trim()) {
+        examSetupUnlocked = true;
+        const icon = document.getElementById('examTabLockIcon');
+        if (icon) icon.className = 'bi bi-unlock-fill me-1';
+        bootstrap.Tab.getOrCreateInstance(tabLink).show();
+      } else {
+        Swal.fire({
+          title: 'Access Denied',
+          text: 'Incorrect PIN code!',
+          icon: 'error',
+          confirmButtonColor: '#601a1a'
+        });
+      }
+    }
+
+    function lockExamSetupTabNow() {
+      examSetupUnlocked = false;
+      const icon = document.getElementById('examTabLockIcon');
+      if (icon) icon.className = 'bi bi-lock-fill me-1';
+      const firstTab = document.querySelector('#mainDirTabs a[href="#createEmp"]');
+      if (firstTab) bootstrap.Tab.getOrCreateInstance(firstTab).show();
+    }
+
+    async function changeExamPinPrompt() {
+      const { value: formValues } = await Swal.fire({
+        title: 'Change Exam Setup PIN',
+        html: `
+          <div class="text-start">
+            <label class="form-label small fw-bold">Current PIN</label>
+            <input type="password" id="swalCurPin" class="form-control mb-3" placeholder="Enter current PIN">
+            <label class="form-label small fw-bold">New PIN</label>
+            <input type="password" id="swalNewPin" class="form-control" placeholder="Enter new PIN">
+          </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonColor: '#601a1a',
+        confirmButtonText: 'Save New PIN',
+        preConfirm: () => {
+          const curP = document.getElementById('swalCurPin').value.trim();
+          const newP = document.getElementById('swalNewPin').value.trim();
+          if (curP !== String(configuredExamPin).trim()) {
+            Swal.showValidationMessage('Current PIN is incorrect!');
+            return false;
+          }
+          if (!newP || newP.length < 4) {
+            Swal.showValidationMessage('New PIN must be at least 4 characters.');
+            return false;
+          }
+          return newP;
+        }
+      });
+
+      if (formValues) {
+        const existing = await db.collection('tms_settings').where('category', '==', 'Exam Setup PIN').get();
+        await Promise.all(existing.docs.map(d => d.ref.delete()));
+        await db.collection('tms_settings').add({ category: 'Exam Setup PIN', subcategory: formValues });
+        configuredExamPin = formValues;
+        Swal.fire('PIN Updated!', 'Your Online Exam Setup PIN has been updated.', 'success');
+      }
+    }
+
+    function togglePassField(inputId, btn) {
+      const inp = document.getElementById(inputId);
+      const icon = btn.querySelector('i');
+      if (inp.type === 'password') { inp.type = 'text'; icon.classList.replace('bi-eye', 'bi-eye-slash'); }
+      else { inp.type = 'password'; icon.classList.replace('bi-eye-slash', 'bi-eye'); }
+    }
+
+    document.getElementById('statusToggle').addEventListener('change', function() {
+      let lbl = document.getElementById('statusLabel');
+      lbl.innerText = this.checked ? 'Active' : 'Resigned / Inactive';
+      lbl.className = this.checked ? 'form-check-label fw-bold text-success' : 'form-check-label fw-bold text-danger';
+    });
+
+    window.onload = function() {
+      db.collection('employees').onSnapshot(snap => {
+        const el = document.getElementById('connStatus');
+        el.className = 'badge bg-success me-2';
+        el.innerHTML = '<i class="bi bi-wifi"></i> Ready';
+        appData.emps = snap.docs.map(d => {
+          const data = d.data();
+          const code = String(data.code || d.id).trim();
+          return Object.assign({}, data, { code: code, _docId: d.id });
+        });
+        renderEmps();
+        renderExamTargetEmps();
+      }, () => {
+        const el = document.getElementById('connStatus');
+        el.className = 'badge bg-secondary me-2';
+        el.innerHTML = '<i class="bi bi-wifi-off"></i> Offline';
+      });
+
+      db.collection('departments').onSnapshot(snap => {
+        appData.deptDocs = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        appData.depts = appData.deptDocs.map(d => [d.main, d.sub]);
+        renderDepts();
+      });
+
+      db.collection('tms_settings').onSnapshot(snap => {
+        appData.settingsDocs = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        appData.settings.departments = {};
+        appData.settings.leaveTypes = [];
+        const reserved = ['Office Lat', 'Office Lng', 'Geo Radius', 'Work Start', 'Work End', 'Leave Type', 'System Type', 'Attendance Rule', 'Exam Setup PIN'];
+        appData.settingsDocs.forEach(r => {
+          if (r.category === 'Exam Setup PIN' && r.subcategory) {
+            configuredExamPin = String(r.subcategory).trim();
+          } else if (r.category === 'Leave Type') {
+            appData.settings.leaveTypes.push({ name: r.subcategory, allowed_days: Number(r.allowed_days || 0) });
+          } else if (!reserved.includes(r.category)) {
+            if (!appData.settings.departments[r.category]) appData.settings.departments[r.category] = [];
+            appData.settings.departments[r.category].push(r.subcategory);
+          }
+        });
+        renderAllSettingsTables();
+        renderOpeningLeaveInputs();
+      });
+
+      db.collection('tms_exams').onSnapshot(snap => {
+        appData.exams = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        renderExamSessions();
+      });
+    };
+
+    function renderOpeningLeaveInputs() {
+      const lTypes = appData.settings.leaveTypes || [];
+      const createBox = document.getElementById('createOpeningLeavesBox');
+      const editBox = document.getElementById('editOpeningLeavesBox');
+
+      if (lTypes.length === 0) {
+        const msg = '<div class="col-12 text-muted small">No leave types configured yet. Please add Leave Types in the Job & System Settings tab first.</div>';
+        createBox.innerHTML = msg;
+        editBox.innerHTML = msg;
+        return;
+      }
+
+      createBox.innerHTML = lTypes.map(lt => `
+        <div class="col-md-3 col-6">
+          <label class="small fw-bold text-secondary">${lt.name} (Default: ${lt.allowed_days}d)</label>
+          <input type="number" step="0.5" min="0" class="form-control form-control-sm border-warning create-open-leave" data-ltype="${lt.name}" value="${lt.allowed_days}">
+        </div>
+      `).join('');
+
+      // Preserve current values in Edit box if an employee is already open
+      const curSelected = document.getElementById('editEmpSelect').value;
+      const openEmp = appData.emps.find(i => i.code === curSelected || i._docId === curSelected);
+      const empOpen = (openEmp && openEmp.openingLeaves) ? openEmp.openingLeaves : {};
+
+      editBox.innerHTML = lTypes.map(lt => {
+        const val = empOpen[lt.name] !== undefined ? empOpen[lt.name] : lt.allowed_days;
+        return `
+          <div class="col-md-3 col-6">
+            <label class="small fw-bold text-secondary">${lt.name} (Default: ${lt.allowed_days}d)</label>
+            <input type="number" step="0.5" min="0" class="form-control form-control-sm border-warning edit-open-leave" data-ltype="${lt.name}" value="${val}">
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function resetAllEmployeesLeaveForNewYear() {
+      const lTypes = appData.settings.leaveTypes || [];
+      if (lTypes.length === 0) {
+        return Swal.fire('No Leave Types', 'Please configure Leave Types and Default Allowed Days first.', 'warning');
+      }
+
+      let defaultLeavesMap = {};
+      let summaryListHtml = lTypes.map(lt => {
+        defaultLeavesMap[lt.name] = Number(lt.allowed_days || 0);
+        return `<li><b>${lt.name}:</b> ${lt.allowed_days} Days</li>`;
+      }).join('');
+
+      const confirmRes = await Swal.fire({
+        title: 'Reset All Leave Balances for New Year?',
+        html: `<div class="text-start small">
+          <p>This action will reset the Opening Leave Balances for all employees to the default annual quotas:</p>
+          <ul>${summaryListHtml}</ul>
+          <p class="text-danger mb-0">* Previous years' leave records will remain intact in history.</p>
+        </div>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#601a1a',
+        confirmButtonText: 'Yes, Reset All Employees'
+      });
+
+      if (!confirmRes.isConfirmed) return;
+
+      try {
+        Swal.fire({ title: 'Resetting Leave Balances...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const empSnap = await db.collection('employees').get();
+        const batchPromises = empSnap.docs.map(doc => {
+          return doc.ref.update({ openingLeaves: defaultLeavesMap });
+        });
+        await Promise.all(batchPromises);
+        Swal.fire('Reset Complete!', `Opening leave balances have been reset for all (${empSnap.docs.length}) employees.`, 'success');
+      } catch (err) {
+        Swal.fire('Error', err.message, 'error');
+      }
+    }
+
+    function renderExamTargetEmps(selectedCodes = ['ALL']) {
+      const box = document.getElementById('exTargetEmpList');
+      const activeList = appData.emps.filter(e => e.status !== 'Inactive');
+      if (activeList.length === 0) {
+        box.innerHTML = '<div class="text-muted small">No active employees found.</div>';
+        return;
+      }
+      const isAll = selectedCodes.includes('ALL');
+      document.getElementById('chkAllEmps').checked = isAll;
+
+      box.innerHTML = activeList.map(e => {
+        const checked = isAll || selectedCodes.includes(e.code) ? 'checked' : '';
+        return `
+          <div class="form-check exam-emp-item py-1 border-bottom" data-search="${(e.code + ' ' + e.name + ' ' + (e.dept || '')).toLowerCase()}">
+            <input class="form-check-input ex-emp-chk" type="checkbox" value="${e.code}" id="exemp_${e.code}" ${checked} onchange="syncSelectAllCheckbox()">
+            <label class="form-check-label small d-flex justify-content-between" for="exemp_${e.code}">
+              <span><b class="text-primary">${e.code}</b> - ${e.name}</span>
+              <span class="text-muted">${e.dept || '-'}</span>
+            </label>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleSelectAllExamEmps(masterChk) {
+      document.querySelectorAll('.ex-emp-chk').forEach(chk => { chk.checked = masterChk.checked; });
+    }
+
+    function syncSelectAllCheckbox() {
+      const allChks = Array.from(document.querySelectorAll('.ex-emp-chk'));
+      document.getElementById('chkAllEmps').checked = allChks.length > 0 && allChks.every(c => c.checked);
+    }
+
+    function filterExamTargetEmps() {
+      const q = document.getElementById('empTargetSearch').value.toLowerCase().trim();
+      document.querySelectorAll('.exam-emp-item').forEach(el => {
+        el.style.display = (!q || el.getAttribute('data-search').includes(q)) ? '' : 'none';
+      });
+    }
+
+    function renderDepts() {
+      let mainDepts = [...new Set(appData.depts.map(d => d[0]).filter(Boolean))];
+      let deptOpts = '<option value="">Select Department...</option>' + mainDepts.map(d => `<option value="${d}">${d}</option>`).join('');
+      document.querySelectorAll('.dept-dropdown').forEach(el => {
+        let val = el.value;
+        el.innerHTML = deptOpts;
+        if (val && !mainDepts.includes(val)) {
+          el.innerHTML += `<option value="${val}">${val}</option>`;
+        }
+        el.value = val;
+      });
+      let pairDeptEl = document.getElementById('pairDept');
+      let curPairDept = pairDeptEl.value;
+      pairDeptEl.innerHTML = deptOpts;
+      pairDeptEl.value = curPairDept;
+
+      document.getElementById('mainDeptList').innerHTML = mainDepts.map(d => `<option value="${d}"></option>`).join('');
+
+      const tbody = document.getElementById('deptListBody');
+      if (appData.deptDocs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-muted py-2">No departments added yet.</td></tr>';
+      } else {
+        tbody.innerHTML = appData.deptDocs.map((d, idx) => `
+          <tr>
+            <td>${idx + 1}</td>
+            <td class="fw-bold text-primary">${d.main || '-'}</td>
+            <td>${d.sub || '-'}</td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="editDeptRow('${d.docId}')"><i class="bi bi-pencil"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteDocItem('departments', '${d.docId}')"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function renderAllSettingsTables() {
+      const reserved = ['Office Lat', 'Office Lng', 'Geo Radius', 'Work Start', 'Work End', 'Leave Type', 'System Type', 'Attendance Rule', 'Exam Setup PIN'];
+      const officeKeys = ['Office Lat', 'Office Lng', 'Geo Radius', 'Work Start', 'Work End'];
+
+      // 1. Job Positions
+      const posDocs = appData.settingsDocs.filter(r => !reserved.includes(r.category));
+      document.getElementById('posListBody').innerHTML = posDocs.length === 0
+        ? '<tr><td colspan="4" class="text-muted py-2">No job positions added yet.</td></tr>'
+        : posDocs.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td class="fw-bold">${r.category}</td>
+            <td>${r.subcategory}</td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="editPosRow('${r.docId}')"><i class="bi bi-pencil"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteDocItem('tms_settings', '${r.docId}')"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+        `).join('');
+
+      // 2. System Types
+      const sysDocs = appData.settingsDocs.filter(r => r.category === 'System Type');
+      document.getElementById('sysTypeListBody').innerHTML = sysDocs.length === 0
+        ? '<tr><td colspan="4" class="text-muted py-2">No custom system types added yet.</td></tr>'
+        : sysDocs.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td class="fw-bold text-success">${r.subcategory}</td>
+            <td><span class="badge ${r.effect === '-' ? 'bg-danger' : (r.effect === '0' ? 'bg-secondary' : 'bg-success')}">${r.effect === '+' ? '+ Merit' : (r.effect === '-' ? '- Demerit' : '0 Neutral')}</span></td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="editSysTypeRow('${r.docId}')"><i class="bi bi-pencil"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteDocItem('tms_settings', '${r.docId}')"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+        `).join('');
+
+      // 3. Leave Types
+      const leaveDocs = appData.settingsDocs.filter(r => r.category === 'Leave Type');
+      document.getElementById('leaveTypeListBody').innerHTML = leaveDocs.length === 0
+        ? '<tr><td colspan="4" class="text-muted py-2">No leave types added yet.</td></tr>'
+        : leaveDocs.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td class="fw-bold">${r.subcategory}</td>
+            <td class="fw-bold text-primary">${r.allowed_days || 0} Days</td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="editLeaveTypeRow('${r.docId}')"><i class="bi bi-pencil"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteDocItem('tms_settings', '${r.docId}')"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+        `).join('');
+
+      // 4. Office Settings
+      const officeDocs = appData.settingsDocs.filter(r => officeKeys.includes(r.category));
+      document.getElementById('officeSettingListBody').innerHTML = officeDocs.length === 0
+        ? '<tr><td colspan="4" class="text-muted py-2">No office GPS/time settings saved yet.</td></tr>'
+        : officeDocs.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td class="fw-bold text-info text-dark">${r.category}</td>
+            <td class="fw-bold">${r.subcategory}</td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="editOfficeRow('${r.docId}')"><i class="bi bi-pencil"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteDocItem('tms_settings', '${r.docId}')"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+        `).join('');
+
+      // 5. Attendance Time Status Rules
+      const timeRuleDocs = appData.settingsDocs
+        .filter(r => r.category === 'Attendance Rule')
+        .sort((a, b) => {
+          if (a.action_type !== b.action_type) return a.action_type === 'Check-In' ? -1 : 1;
+          return Number(a.min_mins) - Number(b.min_mins);
+        });
+
+      const trBody = document.getElementById('timeRuleListBody');
+      trBody.innerHTML = timeRuleDocs.length === 0
+        ? '<tr><td colspan="6" class="text-muted py-3">No attendance rules configured yet. Click <b>"Load Default Rules"</b> in the top-right corner to populate standard rules.</td></tr>'
+        : timeRuleDocs.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td><span class="badge ${r.action_type === 'Check-In' ? 'bg-success' : 'bg-danger'}">${r.action_type}</span></td>
+            <td class="fw-bold">${r.min_mins} mins &nbsp;to&nbsp; ${r.max_mins} mins</td>
+            <td class="fw-bold ${r.color_class || 'text-dark'}">${r.subcategory}</td>
+            <td>${r.show_mins ? '<span class="badge bg-info text-dark">Yes (+m)</span>' : '<span class="text-muted">No</span>'}</td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" onclick="editTimeRuleRow('${r.docId}')"><i class="bi bi-pencil"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteDocItem('tms_settings', '${r.docId}')"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+        `).join('');
+    }
+
+    function deleteDocItem(collectionName, docId) {
+      Swal.fire({
+        title: 'Delete Item?',
+        text: 'Are you sure you want to delete this setting?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Yes, Delete'
+      }).then(res => {
+        if (res.isConfirmed) db.collection(collectionName).doc(docId).delete();
+      });
+    }
+
+    // --- 1. Department Add / Edit ---
+    async function submitDeptForm(e) {
+      e.preventDefault();
+      const docId = document.getElementById('editDeptDocId').value;
+      const main = document.getElementById('deptMainInput').value.trim();
+      const sub = document.getElementById('deptSubInput').value.trim();
+      if (docId) {
+        await db.collection('departments').doc(docId).update({ main, sub });
+        Swal.fire('Updated', 'Department updated.', 'success');
+        cancelDeptEdit();
+      } else {
+        await db.collection('departments').add({ main, sub });
+        Swal.fire('Success', 'Department saved.', 'success');
+        document.getElementById('formDept').reset();
+      }
+    }
+    function editDeptRow(docId) {
+      const d = appData.deptDocs.find(x => x.docId === docId);
+      if (!d) return;
+      document.getElementById('editDeptDocId').value = d.docId;
+      document.getElementById('deptMainInput').value = d.main || '';
+      document.getElementById('deptSubInput').value = d.sub || '';
+      document.getElementById('btnDeptSubmit').innerText = 'Update Division';
+      document.getElementById('btnDeptCancel').style.display = 'inline-block';
+    }
+    function cancelDeptEdit() {
+      document.getElementById('editDeptDocId').value = '';
+      document.getElementById('formDept').reset();
+      document.getElementById('btnDeptSubmit').innerText = 'Add Division';
+      document.getElementById('btnDeptCancel').style.display = 'none';
+    }
+
+    // --- 2. Job Position Add / Edit ---
+    async function addSettingPair(e) {
+      e.preventDefault();
+      const docId = document.getElementById('editPosDocId').value;
+      const dept = document.getElementById('pairDept').value;
+      const pos = document.getElementById('pairPos').value.trim();
+      if (docId) {
+        await db.collection('tms_settings').doc(docId).update({ category: dept, subcategory: pos });
+        Swal.fire('Updated', 'Job Position updated.', 'success');
+        cancelPosEdit();
+      } else {
+        await db.collection('tms_settings').add({ category: dept, subcategory: pos });
+        Swal.fire('Added', 'Job Position saved.', 'success');
+        document.getElementById('pairPos').value = '';
+      }
+    }
+    function editPosRow(docId) {
+      const r = appData.settingsDocs.find(x => x.docId === docId);
+      if (!r) return;
+      document.getElementById('editPosDocId').value = r.docId;
+      document.getElementById('pairDept').value = r.category;
+      document.getElementById('pairPos').value = r.subcategory;
+      document.getElementById('btnPosSubmit').innerText = 'Update Position';
+      document.getElementById('btnPosCancel').style.display = 'inline-block';
+    }
+    function cancelPosEdit() {
+      document.getElementById('editPosDocId').value = '';
+      document.getElementById('pairPos').value = '';
+      document.getElementById('btnPosSubmit').innerText = 'Add Position';
+      document.getElementById('btnPosCancel').style.display = 'none';
+    }
+
+    // --- 3. System Type Add / Edit ---
+    async function addTransactionSysType(e) {
+      e.preventDefault();
+      const docId = document.getElementById('editSysTypeDocId').value;
+      const name = document.getElementById('transTypeName').value.trim().toUpperCase();
+      const effect = document.getElementById('transTypeEffect').value;
+      if (docId) {
+        await db.collection('tms_settings').doc(docId).update({ category: 'System Type', subcategory: name, effect });
+        Swal.fire('Updated', `System Type "${name}" updated.`, 'success');
+        cancelSysTypeEdit();
+      } else {
+        await db.collection('tms_settings').add({ category: 'System Type', subcategory: name, effect });
+        Swal.fire('Saved', `System Type "${name}" (${effect}) added.`, 'success');
+        document.getElementById('transTypeName').value = '';
+      }
+    }
+    function editSysTypeRow(docId) {
+      const r = appData.settingsDocs.find(x => x.docId === docId);
+      if (!r) return;
+      document.getElementById('editSysTypeDocId').value = r.docId;
+      document.getElementById('transTypeName').value = r.subcategory;
+      document.getElementById('transTypeEffect').value = r.effect || '+';
+      document.getElementById('btnSysTypeSubmit').innerText = 'Update System Type';
+      document.getElementById('btnSysTypeCancel').style.display = 'inline-block';
+    }
+    function cancelSysTypeEdit() {
+      document.getElementById('editSysTypeDocId').value = '';
+      document.getElementById('transTypeName').value = '';
+      document.getElementById('btnSysTypeSubmit').innerText = 'Add System Type';
+      document.getElementById('btnSysTypeCancel').style.display = 'none';
+    }
+
+    // --- 4. Leave Type Add / Edit ---
+    async function addLeaveTypeSetting(e) {
+      e.preventDefault();
+      const docId = document.getElementById('editLeaveTypeDocId').value;
+      const name = document.getElementById('leaveTypeName').value.trim();
+      const days = Number(document.getElementById('leaveAllowedDays').value);
+      if (docId) {
+        await db.collection('tms_settings').doc(docId).update({ category: 'Leave Type', subcategory: name, allowed_days: days });
+        Swal.fire('Updated', `${name} (${days} Days) updated.`, 'success');
+        cancelLeaveTypeEdit();
+      } else {
+        let existing = await db.collection('tms_settings').where('category', '==', 'Leave Type').where('subcategory', '==', name).get();
+        await Promise.all(existing.docs.map(d => d.ref.delete()));
+        await db.collection('tms_settings').add({ category: 'Leave Type', subcategory: name, allowed_days: days });
+        Swal.fire('Saved', `${name} (${days} Days) saved.`, 'success');
+        document.getElementById('leaveTypeName').value = '';
+        document.getElementById('leaveAllowedDays').value = '';
+      }
+    }
+    function editLeaveTypeRow(docId) {
+      const r = appData.settingsDocs.find(x => x.docId === docId);
+      if (!r) return;
+      document.getElementById('editLeaveTypeDocId').value = r.docId;
+      document.getElementById('leaveTypeName').value = r.subcategory;
+      document.getElementById('leaveAllowedDays').value = r.allowed_days || 1;
+      document.getElementById('btnLeaveTypeSubmit').innerText = 'Update Leave Type';
+      document.getElementById('btnLeaveTypeCancel').style.display = 'inline-block';
+    }
+    function cancelLeaveTypeEdit() {
+      document.getElementById('editLeaveTypeDocId').value = '';
+      document.getElementById('leaveTypeName').value = '';
+      document.getElementById('leaveAllowedDays').value = '';
+      document.getElementById('btnLeaveTypeSubmit').innerText = 'Save Leave Type';
+      document.getElementById('btnLeaveTypeCancel').style.display = 'none';
+    }
+
+    // --- 5. Office Setting Add / Edit ---
+    async function addSystemSetting(e) {
+      e.preventDefault();
+      const docId = document.getElementById('editOfficeDocId').value;
+      const cat = document.getElementById('sysCat').value;
+      const val = document.getElementById('sysVal').value.trim();
+      if (docId) {
+        await db.collection('tms_settings').doc(docId).update({ category: cat, subcategory: val });
+        Swal.fire('Updated', 'Office setting updated.', 'success');
+        cancelOfficeEdit();
+      } else {
+        let existing = await db.collection('tms_settings').where('category', '==', cat).get();
+        await Promise.all(existing.docs.map(doc => doc.ref.delete()));
+        await db.collection('tms_settings').add({ category: cat, subcategory: val });
+        Swal.fire('Saved', 'Office setting updated.', 'success');
+        document.getElementById('sysVal').value = '';
+      }
+    }
+    function editOfficeRow(docId) {
+      const r = appData.settingsDocs.find(x => x.docId === docId);
+      if (!r) return;
+      document.getElementById('editOfficeDocId').value = r.docId;
+      document.getElementById('sysCat').value = r.category;
+      document.getElementById('sysVal').value = r.subcategory;
+      document.getElementById('btnOfficeSubmit').innerText = 'Update Office Setting';
+      document.getElementById('btnOfficeCancel').style.display = 'inline-block';
+    }
+    function cancelOfficeEdit() {
+      document.getElementById('editOfficeDocId').value = '';
+      document.getElementById('sysVal').value = '';
+      document.getElementById('btnOfficeSubmit').innerText = 'Save Office Setting';
+      document.getElementById('btnOfficeCancel').style.display = 'none';
+    }
+
+    // --- 6. Attendance Time Status Rules Add / Edit / Default ---
+    async function saveAttendanceRule(e) {
+      e.preventDefault();
+      const docId = document.getElementById('editTimeRuleDocId').value;
+      const payload = {
+        category: 'Attendance Rule',
+        action_type: document.getElementById('trAction').value,
+        min_mins: Number(document.getElementById('trMin').value),
+        max_mins: Number(document.getElementById('trMax').value),
+        subcategory: document.getElementById('trLabel').value.trim(),
+        color_class: document.getElementById('trColor').value,
+        show_mins: document.getElementById('trShowMins').checked
+      };
+
+      if (payload.min_mins > payload.max_mins) {
+        return Swal.fire('Invalid Range', 'From Min must be less than or equal to To Min.', 'warning');
+      }
+
+      if (docId) {
+        await db.collection('tms_settings').doc(docId).update(payload);
+        Swal.fire('Updated', 'Attendance rule updated.', 'success');
+        cancelTimeRuleEdit();
+      } else {
+        await db.collection('tms_settings').add(payload);
+        Swal.fire('Saved', 'Attendance rule added.', 'success');
+        document.getElementById('formTimeRule').reset();
+      }
+    }
+
+    function editTimeRuleRow(docId) {
+      const r = appData.settingsDocs.find(x => x.docId === docId);
+      if (!r) return;
+      document.getElementById('editTimeRuleDocId').value = r.docId;
+      document.getElementById('trAction').value = r.action_type || 'Check-In';
+      document.getElementById('trMin').value = r.min_mins;
+      document.getElementById('trMax').value = r.max_mins;
+      document.getElementById('trLabel').value = r.subcategory || '';
+      document.getElementById('trColor').value = r.color_class || 'text-success';
+      document.getElementById('trShowMins').checked = Boolean(r.show_mins);
+      document.getElementById('btnTimeRuleSubmit').innerText = 'Update Rule';
+      document.getElementById('btnTimeRuleCancel').style.display = 'inline-block';
+    }
+
+    function cancelTimeRuleEdit() {
+      document.getElementById('editTimeRuleDocId').value = '';
+      document.getElementById('formTimeRule').reset();
+      document.getElementById('btnTimeRuleSubmit').innerText = 'Save Rule';
+      document.getElementById('btnTimeRuleCancel').style.display = 'none';
+    }
+
+    async function loadDefaultTimeRules() {
+      const confirmRes = await Swal.fire({
+        title: 'Load Default Time Rules?',
+        text: 'Do you want to load the standard Check-In (On Time, Small Late, Big Late, Half day) and Check-Out (Early check out, On Time, Overtime) rules?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#601a1a',
+        confirmButtonText: 'Yes, Load Defaults'
+      });
+      if (!confirmRes.isConfirmed) return;
+
+      const existing = await db.collection('tms_settings').where('category', '==', 'Attendance Rule').get();
+      await Promise.all(existing.docs.map(d => d.ref.delete()));
+
+      const defaults = [
+        { category: 'Attendance Rule', action_type: 'Check-In', min_mins: -999, max_mins: 5, subcategory: 'On Time', color_class: 'text-success', show_mins: false },
+        { category: 'Attendance Rule', action_type: 'Check-In', min_mins: 6, max_mins: 15, subcategory: 'Small Late', color_class: 'text-warning', show_mins: true },
+        { category: 'Attendance Rule', action_type: 'Check-In', min_mins: 16, max_mins: 240, subcategory: 'Big Late', color_class: 'text-danger', show_mins: true },
+        { category: 'Attendance Rule', action_type: 'Check-In', min_mins: 241, max_mins: 999, subcategory: 'Half day', color_class: 'text-danger', show_mins: false },
+        { category: 'Attendance Rule', action_type: 'Check-Out', min_mins: -999, max_mins: -1, subcategory: 'Early check out', color_class: 'text-warning', show_mins: false },
+        { category: 'Attendance Rule', action_type: 'Check-Out', min_mins: 0, max_mins: 59, subcategory: 'On Time', color_class: 'text-success', show_mins: false },
+        { category: 'Attendance Rule', action_type: 'Check-Out', min_mins: 60, max_mins: 999, subcategory: 'Overtime', color_class: 'text-primary', show_mins: true }
+      ];
+
+      for (const item of defaults) {
+        await db.collection('tms_settings').add(item);
+      }
+      Swal.fire('Loaded!', 'Default Attendance Rules (7 rules) have been loaded and can be customized anytime.', 'success');
+    }
+
+    function renderEmps() {
+      let sel = document.getElementById('editEmpSelect');
+      let cur = sel.value;
+      let opts = appData.emps.map(e => `<option value="${e.code}">${e.code} - ${e.name} ${e.status === 'Inactive' ? '(Resigned)' : ''}</option>`).join('');
+      sel.innerHTML = opts ? '<option value="">Select Employee...</option>' + opts : '<option value="">No Data Found</option>';
+      if (cur && appData.emps.some(e => e.code === cur)) {
+        sel.value = cur;
+      }
+    }
+
+    function ensureSelectOption(selectEl, val) {
+      if (!selectEl || !val) return;
+      const strVal = String(val).trim();
+      if (!strVal) return;
+      const exists = Array.from(selectEl.options).some(opt => opt.value === strVal);
+      if (!exists) {
+        const opt = document.createElement('option');
+        opt.value = strVal;
+        opt.textContent = strVal;
+        selectEl.appendChild(opt);
+      }
+      selectEl.value = strVal;
+    }
+
+    function updateSubAndPos(deptEl, actionType) {
+      let form = deptEl.closest('form');
+      let mainDept = deptEl.value;
+      let subSelect = form.querySelector('.sub-dept-dropdown');
+      if (subSelect) {
+        let subs = appData.depts.filter(d => d[0] === mainDept).map(d => d[1]).filter(Boolean);
+        subSelect.innerHTML = '<option value="">Select Sub-Department...</option>' + subs.map(s => `<option value="${s}">${s}</option>`).join('');
+      }
+      let posSelect = form.querySelector(actionType === 'create' ? '.create-position' : '.edit-position');
+      if (posSelect) {
+        let positions = appData.settings.departments[mainDept] || [];
+        posSelect.innerHTML = '<option value="">Select Position...</option>' + positions.map(p => `<option value="${p}">${p}</option>`).join('');
+      }
+    }
+
+    function compressImage(file, maxWidth = 400) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const scale = maxWidth / img.width;
+            canvas.width = img.width > maxWidth ? maxWidth : img.width;
+            canvas.height = img.width > maxWidth ? img.height * scale : img.height;
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+          };
+          img.onerror = reject;
+          img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function syncEmployeeCodeAndNameInRecords(oldCode, newCode, newName) {
+      const cols = ['attendance', 'leave', 'records', 'exam_results'];
+      for (const col of cols) {
+        try {
+          const snap = await db.collection(col).where('emp_code', '==', oldCode).get();
+          const updates = snap.docs.map(d => {
+            const payload = { emp_code: newCode };
+            if (col !== 'records' && newName) payload.emp_name = newName;
+            return d.ref.update(payload);
+          });
+          await Promise.all(updates);
+        } catch (e) {}
+      }
+    }
+
+    async function handleEmpSubmit(e, action) {
+      e.preventDefault();
+      let form = e.target;
+      let data = Object.fromEntries(new FormData(form).entries());
+      data.code = String(data.code || '').trim();
+      data.name = String(data.name || '').trim();
+      data.username = String(data.username || '').trim();
+      data.password = String(data.password || '').trim();
+
+      if (!data.code || !data.name || !data.username || !data.password) {
+        return Swal.fire('Missing Required Fields', 'Please fill in Employee ID, Full Name, Username, and Password.', 'warning');
+      }
+
+      const btn = document.getElementById(action === 'create' ? 'btnCreate' : 'btnEdit');
+      const origBtnHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+      try {
+        let fileInput = document.getElementById(action === 'create' ? 'photoFile' : 'editPhotoFile');
+
+        data.status = action === 'edit' ? (document.getElementById('statusToggle').checked ? 'Active' : 'Inactive') : 'Active';
+        data.dept = data.subDept ? `${data.dept} > ${data.subDept}` : (data.dept || '');
+        delete data.subDept;
+
+        let openingLeaves = {};
+        const selector = action === 'create' ? '.create-open-leave' : '.edit-open-leave';
+        document.querySelectorAll(selector).forEach(inp => {
+          const lType = inp.getAttribute('data-ltype');
+          if (lType) openingLeaves[lType] = Number(inp.value || 0);
+        });
+        data.openingLeaves = openingLeaves;
+
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+          data.photoUrl = await compressImage(fileInput.files[0], 400);
+        } else {
+          data.photoUrl = action === 'edit' ? document.getElementById('existingPhotoUrl').value : "";
+        }
+
+        if (action === 'create') {
+          data.created_at = Date.now();
+          await db.collection('employees').doc(data.code).set(data);
+          Swal.fire('Success', `New Employee (${data.code} - ${data.name}) registered successfully.`, 'success');
+          form.reset();
+          renderOpeningLeaveInputs();
+        } else {
+          const origDocId = String(document.getElementById('originalDocId').value || '').trim();
+          const origEmpCode = String(document.getElementById('originalEmpCode').value || '').trim();
+
+          // Save to the target Employee Code document using set with merge
+          await db.collection('employees').doc(data.code).set(data, { merge: true });
+
+          // If the old Firestore Document ID was different from the new code, remove the old duplicate document
+          if (origDocId && origDocId !== data.code) {
+            try { await db.collection('employees').doc(origDocId).delete(); } catch (delErr) {}
+          }
+
+          // If Employee Code changed, automatically sync Attendance, Leave, Records & Exam Results
+          if (origEmpCode && origEmpCode.toUpperCase() !== data.code.toUpperCase()) {
+            await syncEmployeeCodeAndNameInRecords(origEmpCode, data.code, data.name);
+          }
+
+          document.getElementById('originalDocId').value = data.code;
+          document.getElementById('originalEmpCode').value = data.code;
+          renderEmps();
+          document.getElementById('editEmpSelect').value = data.code;
+          if (fileInput) fileInput.value = '';
+          if (data.photoUrl) {
+            document.getElementById('existingPhotoUrl').value = data.photoUrl;
+            const thumbImg = document.getElementById('editEmpThumbnail');
+            thumbImg.src = data.photoUrl;
+            thumbImg.style.display = 'block';
+            document.getElementById('noImageText').style.display = 'none';
+          }
+
+          Swal.fire('Updated!', `Profile for "${data.name}" (${data.code}) has been updated successfully.`, 'success');
+        }
+      } catch (err) {
+        Swal.fire('Update Error', err.message || 'Could not save employee profile.', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origBtnHtml;
+      }
+    }
+
+    function fetchEmpData() {
+      const code = document.getElementById('editEmpSelect').value;
+      const emp = appData.emps.find(i => String(i.code).trim() === String(code).trim() || String(i._docId).trim() === String(code).trim());
+      if (emp) {
+        document.getElementById('editFields').style.display = 'flex';
+        document.getElementById('statusContainer').style.display = 'block';
+        document.getElementById('originalDocId').value = emp._docId || emp.code;
+        document.getElementById('originalEmpCode').value = emp.code;
+
+        let frm = document.getElementById('formEdit');
+        let dParts = emp.dept ? String(emp.dept).split(' > ') : [""];
+        let mainD = (dParts[0] || '').trim();
+        let subD = dParts.length > 1 ? dParts[1].trim() : '';
+
+        document.getElementById('editCodeInput').value = emp.code || '';
+        frm.name.value = emp.name || '';
+        frm.fatherName.value = emp.fatherName || '';
+        frm.nrc.value = emp.nrc || '';
+        frm.username.value = emp.username || '';
+        frm.password.value = emp.password || '';
+        frm.ssbId.value = emp.ssbId || '';
+        frm.taxId.value = emp.taxId || '';
+        frm.joinDate.value = emp.joinDate || '';
+        frm.insPolicyNo.value = emp.insPolicyNo || '';
+        frm.insValidDate.value = emp.insValidDate || '';
+        frm.address.value = emp.address || '';
+        frm.bio.value = emp.bio || '';
+
+        ensureSelectOption(frm.dept, mainD);
+        updateSubAndPos(frm.dept, 'edit');
+        if (subD && frm.subDept) ensureSelectOption(frm.subDept, subD);
+        if (emp.position && frm.position) ensureSelectOption(frm.position, emp.position);
+
+        frm.phone.value = emp.phone || '';
+        frm.email.value = emp.email || '';
+        frm.remark.value = emp.remark || '';
+
+        const empOpen = emp.openingLeaves || {};
+        document.querySelectorAll('.edit-open-leave').forEach(inp => {
+          const ltName = inp.getAttribute('data-ltype');
+          const defaultObj = (appData.settings.leaveTypes || []).find(x => x.name === ltName);
+          const defDays = defaultObj ? defaultObj.allowed_days : 0;
+          inp.value = empOpen[ltName] !== undefined ? empOpen[ltName] : defDays;
+        });
+
+        let toggle = document.getElementById('statusToggle');
+        toggle.checked = (emp.status !== 'Inactive');
+        toggle.dispatchEvent(new Event('change'));
+
+        let thumbImg = document.getElementById('editEmpThumbnail');
+        let noImgText = document.getElementById('noImageText');
+        document.getElementById('existingPhotoUrl').value = emp.photoUrl || '';
+        if (emp.photoUrl) {
+          thumbImg.src = emp.photoUrl; thumbImg.style.display = 'block'; noImgText.style.display = 'none';
+        } else {
+          thumbImg.style.display = 'none'; noImgText.style.display = 'block';
+        }
+      } else {
+        document.getElementById('editFields').style.display = 'none';
+        document.getElementById('statusContainer').style.display = 'none';
+      }
+    }
+
+    // ==================== ONLINE EXAM SETUP FUNCTIONS ====================
+    function renderQuestionBankPreview() {
+      document.getElementById('qBankCount').innerText = currentQuestionBank.length;
+      const box = document.getElementById('qPreviewContainer');
+      if (currentQuestionBank.length === 0) {
+        box.innerHTML = '<div class="text-muted small text-center py-4">No questions in pool yet. Import an Excel file or add questions manually above.</div>';
+        return;
+      }
+      const labels = ['A', 'B', 'C', 'D'];
+      box.innerHTML = currentQuestionBank.map((item, idx) => `
+        <div class="border-bottom pb-2 mb-2 small d-flex justify-content-between align-items-start">
+          <div>
+            <div class="fw-bold text-dark">${idx + 1}. ${item.q}</div>
+            <div class="text-muted ms-2">
+              ${item.opts.map((o, oi) => `<span class="me-3 ${oi === Number(item.ans) ? 'text-success fw-bold' : ''}">${labels[oi]}) ${o} ${oi === Number(item.ans) ? '✓' : ''}</span>`).join('')}
+            </div>
+          </div>
+          <button type="button" class="btn btn-sm text-danger py-0 px-1" onclick="removeQuestionFromBank(${idx})"><i class="bi bi-trash"></i></button>
+        </div>
+      `).join('');
+    }
+
+    function downloadSampleExamExcel() {
+      const sampleRows = [
+        ["Question", "Option A", "Option B", "Option C", "Option D", "Correct Answer"],
+        ["What is the primary difference between a Supply Chain and Logistics?", "Logistics is broader", "Supply Chain is only transport", "Logistics is a subset of Supply Chain", "No difference", "C"],
+        ["A 'Push' supply chain strategy is primarily driven by:", "Actual customer orders", "Forecasted demand", "Supplier capacity", "Real-time POS data", "B"]
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(sampleRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Questions_Template");
+      XLSX.writeFile(wb, "UT_Exam_Questions_Template.xlsx");
+    }
+
+    function addManualQuestion() {
+      const q = document.getElementById('mqText').value.trim();
+      const o0 = document.getElementById('mqOpt0').value.trim();
+      const o1 = document.getElementById('mqOpt1').value.trim();
+      const o2 = document.getElementById('mqOpt2').value.trim();
+      const o3 = document.getElementById('mqOpt3').value.trim();
+      const ans = Number(document.getElementById('mqAns').value);
+
+      if (!q || !o0 || !o1) return Swal.fire('Incomplete', 'Please enter Question and at least Option A & B.', 'warning');
+      currentQuestionBank.push({ q, opts: [o0, o1, o2, o3].filter(Boolean), ans });
+      ['mqText', 'mqOpt0', 'mqOpt1', 'mqOpt2', 'mqOpt3'].forEach(id => document.getElementById(id).value = '');
+      renderQuestionBankPreview();
+    }
+
+    function removeQuestionFromBank(idx) {
+      currentQuestionBank.splice(idx, 1);
+      renderQuestionBankPreview();
+    }
+
+    function clearQuestionBank() {
+      currentQuestionBank = [];
+      renderQuestionBankPreview();
+    }
+
+    function parseCorrectAnswerIndex(rawVal, opts) {
+      if (rawVal === undefined || rawVal === null) return 0;
+      const str = String(rawVal).trim().toUpperCase();
+      if (str === 'A' || str === 'OPTION A') return 0;
+      if (str === 'B' || str === 'OPTION B') return 1;
+      if (str === 'C' || str === 'OPTION C') return 2;
+      if (str === 'D' || str === 'OPTION D') return 3;
+
+      const num = Number(str);
+      if (!isNaN(num)) {
+        if (num >= 1 && num <= 4) return num - 1;
+        if (num === 0) return 0;
+      }
+
+      const matchedIdx = opts.findIndex(o => o.toLowerCase() === String(rawVal).trim().toLowerCase());
+      if (matchedIdx !== -1) return matchedIdx;
+      return 0;
+    }
+
+    function importQuestionsExcel(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const wb = XLSX.read(evt.target.result, { type: 'binary' });
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+        let added = 0;
+        rows.forEach((r, idx) => {
+          if (!r || r.length < 3) return;
+          const firstCell = String(r[0] || '').trim();
+          if (!firstCell) return;
+          if (idx === 0 && (firstCell.toLowerCase().includes('question') || firstCell.toLowerCase() === 'q')) return;
+
+          const opts = [r[1], r[2], r[3], r[4]]
+            .filter(x => x !== undefined && x !== null && String(x).trim() !== '')
+            .map(x => String(x).trim());
+
+          if (opts.length >= 2) {
+            const ansIdx = parseCorrectAnswerIndex(r[5], opts);
+            currentQuestionBank.push({ q: firstCell, opts: opts, ans: ansIdx });
+            added++;
+          }
+        });
+        renderQuestionBankPreview();
+        Swal.fire('Imported!', `${added} questions have been imported into the pool.`, 'success');
+        e.target.value = '';
+      };
+      reader.readAsBinaryString(file);
+    }
+
+    async function saveExamSession(e) {
+      e.preventDefault();
+      if (currentQuestionBank.length === 0) {
+        return Swal.fire('No Questions', 'Please add or import questions into the Question Bank first.', 'warning');
+      }
+
+      const isAllChecked = document.getElementById('chkAllEmps').checked;
+      const checkedEmps = Array.from(document.querySelectorAll('.ex-emp-chk:checked')).map(c => c.value);
+      if (!isAllChecked && checkedEmps.length === 0) {
+        return Swal.fire('No Target Selected', 'Please select at least one target employee for this exam.', 'warning');
+      }
+
+      const targetEmps = isAllChecked ? ['ALL'] : checkedEmps;
+      const examId = document.getElementById('exId').value.trim().toUpperCase();
+      const payload = {
+        exam_id: examId,
+        title: document.getElementById('exTitle').value.trim(),
+        target_emps: targetEmps,
+        question_count: Number(document.getElementById('exQCount').value),
+        points_per_q: Number(document.getElementById('exPoints').value),
+        pass_score: Number(document.getElementById('exPass').value),
+        time_limit: Number(document.getElementById('exTimer').value || 0),
+        status: document.getElementById('exStatus').value,
+        questions: currentQuestionBank,
+        updated_at: Date.now()
+      };
+      await db.collection('tms_exams').doc(examId).set(payload);
+      Swal.fire('Saved!', `Exam "${examId}" has been saved and published.`, 'success');
+    }
+
+    function resetExamForm() {
+      document.getElementById('formExamSetup').reset();
+      currentQuestionBank = [];
+      renderQuestionBankPreview();
+      renderExamTargetEmps(['ALL']);
+    }
+
+    function editExamSession(examId) {
+      const ex = appData.exams.find(x => x.exam_id === examId);
+      if (!ex) return;
+      document.getElementById('exId').value = ex.exam_id;
+      document.getElementById('exTitle').value = ex.title;
+      document.getElementById('exQCount').value = ex.question_count || 20;
+      document.getElementById('exPoints').value = ex.points_per_q || 5;
+      document.getElementById('exPass').value = ex.pass_score || 50;
+      document.getElementById('exTimer').value = ex.time_limit || 0;
+      document.getElementById('exStatus').value = ex.status || 'Active';
+
+      const targets = Array.isArray(ex.target_emps) && ex.target_emps.length > 0 ? ex.target_emps : ['ALL'];
+      renderExamTargetEmps(targets);
+
+      currentQuestionBank = Array.isArray(ex.questions) ? JSON.parse(JSON.stringify(ex.questions)) : [];
+      renderQuestionBankPreview();
+    }
+
+    function toggleExamStatus(examId, curStatus) {
+      const nextStatus = curStatus === 'Active' ? 'Closed' : 'Active';
+      db.collection('tms_exams').doc(examId).update({ status: nextStatus });
+    }
+
+    function deleteExamSession(examId) {
+      Swal.fire({
+        title: 'Delete Exam?',
+        text: `Are you sure you want to delete ${examId}?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Delete'
+      }).then(res => {
+        if (res.isConfirmed) db.collection('tms_exams').doc(examId).delete();
+      });
+    }
+
+    function copyExamLink(examId) {
+      const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+      const url = `${baseUrl}exam.html?exam_id=${encodeURIComponent(examId)}`;
+      navigator.clipboard.writeText(url);
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Exam Link Copied!', text: url, showConfirmButton: false, timer: 2500 });
+    }
+
+    function renderExamSessions() {
+      const tbody = document.getElementById('examSessionsBody');
+      if (appData.exams.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-muted py-4">No Exam Sessions Created Yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = appData.exams.map(ex => {
+        const qPoolLen = Array.isArray(ex.questions) ? ex.questions.length : 0;
+        const totalMarks = Number(ex.question_count || 20) * Number(ex.points_per_q || 5);
+        const badgeCls = ex.status === 'Active' ? 'bg-success' : 'bg-secondary';
+
+        let targetLabel = 'ALL';
+        if (Array.isArray(ex.target_emps)) {
+          targetLabel = ex.target_emps.includes('ALL') ? 'All Employees' : `${ex.target_emps.length} Selected`;
+        } else if (ex.target_dept) {
+          targetLabel = ex.target_dept;
+        }
+
+        return `
+          <tr>
+            <td class="text-start">
+              <div class="fw-bold text-primary">${ex.exam_id}</div>
+              <div class="small text-dark">${ex.title}</div>
+            </td>
+            <td class="small"><span class="badge bg-info text-dark">${targetLabel}</span></td>
+            <td class="small">
+              <div><b>${ex.question_count}</b> / ${qPoolLen} Qs</div>
+              <div class="text-muted">${totalMarks} Marks</div>
+            </td>
+            <td>
+              <span class="badge ${badgeCls}" style="cursor:pointer;" onclick="toggleExamStatus('${ex.exam_id}', '${ex.status}')">${ex.status}</span>
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-primary" title="Copy Link" onclick="copyExamLink('${ex.exam_id}')"><i class="bi bi-link-45deg"></i></button>
+                <button class="btn btn-outline-secondary" title="Edit" onclick="editExamSession('${ex.exam_id}')"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-outline-danger" title="Delete" onclick="deleteExamSession('${ex.exam_id}')"><i class="bi bi-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  </script>
+</body>
+</html>

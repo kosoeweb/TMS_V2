@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>UT - Portal Sign In</title>
+  <meta name="theme-color" content="#601a1a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="UT Portal">
+  <link rel="icon" type="image/png" href="emp.png">
+  <link rel="apple-touch-icon" href="emp.png">
+  <link rel="manifest" href="manifest.json">
+
+  <script>
+    // Instant Auto-Login Check (0 Firestore Reads if already signed in)
+    (function checkPersistentLogin() {
+      var params = new URLSearchParams(window.location.search);
+      if (params.get('logout') === '1') return;
+
+      var savedCode = '';
+      try { savedCode = (localStorage.getItem('ut_emp_code') || '').trim(); } catch (e) {}
+
+      if (!savedCode) {
+        var match = document.cookie.match(/(?:^|;\s*)ut_emp_code=([^;]*)/);
+        if (match && match[1]) {
+          savedCode = decodeURIComponent(match[1]).trim();
+          try { localStorage.setItem('ut_emp_code', savedCode); } catch (e) {}
+        }
+      }
+
+      if (savedCode) {
+        window.location.replace('portal.html');
+      }
+    })();
+  </script>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body {
+      background-color: #f4f6f9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 15px;
+    }
+    .login-card {
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+      width: 100%;
+      max-width: 400px;
+      padding: 34px 28px;
+      border: none;
+    }
+    .logo-box {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      padding: 6px 14px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+      margin-bottom: 16px;
+    }
+    .logo-box img { height: 48px; object-fit: contain; }
+    .company-title {
+      color: #601a1a;
+      font-weight: 700;
+      font-size: clamp(1.1rem, 4.2vw, 1.25rem);
+      white-space: nowrap;
+      margin-bottom: 6px;
+    }
+    .portal-subtitle { color: #555555; font-size: 0.88rem; margin-bottom: 26px; }
+    .form-label { font-weight: 600; font-size: 0.88rem; color: #212529; margin-bottom: 6px; }
+    .form-control { padding: 10px 14px; border-radius: 7px; border: 1px solid #ced4da; font-size: 0.92rem; }
+    .form-control:focus { border-color: #601a1a; box-shadow: 0 0 0 0.2rem rgba(96, 26, 26, 0.15); }
+    .eye-btn {
+      border: 1px solid #ced4da;
+      border-left: none;
+      background: #ffffff;
+      color: #495057;
+      padding: 0 14px;
+      border-top-right-radius: 7px;
+      border-bottom-right-radius: 7px;
+      cursor: pointer;
+    }
+    .btn-theme {
+      background-color: #601a1a;
+      color: #ffffff;
+      font-weight: 600;
+      padding: 10px;
+      border-radius: 7px;
+      border: none;
+      width: 100%;
+      font-size: 0.95rem;
+    }
+    .btn-theme:hover { background-color: #4a1313; color: #ffffff; }
+    .status-pill { font-size: 0.78rem; padding: 5px 12px; border-radius: 20px; }
+
+    /* Floating Install Prompt Banner */
+    .pwa-install-prompt {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(150%);
+      width: calc(100% - 30px);
+      max-width: 400px;
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+      border-left: 5px solid #601a1a;
+      padding: 14px 16px;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .pwa-install-prompt.show { transform: translateX(-50%) translateY(0); }
+    .pwa-install-prompt img {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      border-radius: 10px;
+      background: #f8f9fa;
+      padding: 3px;
+      border: 1px solid #eee;
+    }
+    .pwa-prompt-text { flex-grow: 1; line-height: 1.25; }
+    .pwa-prompt-title { font-weight: 700; font-size: 0.9rem; color: #601a1a; margin-bottom: 2px; }
+    .pwa-prompt-sub { font-size: 0.75rem; color: #6c757d; }
+    .btn-pwa-install {
+      background-color: #601a1a;
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 0.82rem;
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: none;
+      white-space: nowrap;
+    }
+    .btn-pwa-close {
+      background: transparent;
+      border: none;
+      color: #adb5bd;
+      font-size: 1.2rem;
+      padding: 0 4px;
+      line-height: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="mb-3">
+    <span id="connBadge" class="badge bg-success status-pill"><i class="bi bi-shield-check"></i> System Ready</span>
+  </div>
+
+  <div class="login-card">
+    <div class="text-center">
+      <div class="logo-box">
+        <img src="logo.png" alt="UT Logo">
+      </div>
+      <div class="company-title">Universal Tractor Co., Ltd.</div>
+      <div class="portal-subtitle">Employee Portal Sign In</div>
+    </div>
+
+    <form id="loginForm" onsubmit="handlePortalLogin(event)">
+      <div class="mb-3">
+        <label class="form-label">Username or Employee ID</label>
+        <input type="text" id="loginUser" class="form-control" placeholder="Enter username or ID (e.g. UT-001)" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label">Password</label>
+        <div class="input-group">
+          <input type="password" id="loginPass" class="form-control" placeholder="Enter password" required autocomplete="current-password">
+          <button type="button" class="btn eye-btn" onclick="togglePasswordVisibility()">
+            <i class="bi bi-eye" id="eyeIcon"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" id="btnLogin" class="btn-theme">Log In</button>
+    </form>
+  </div>
+
+  <!-- Floating App Install Prompt with emp.png icon -->
+  <div id="pwaInstallBanner" class="pwa-install-prompt">
+    <img src="emp.png" onerror="this.src='logo.png'" alt="UT App">
+    <div class="pwa-prompt-text">
+      <div class="pwa-prompt-title">Install Employee Portal</div>
+      <div class="pwa-prompt-sub">Add to Home Screen for quick access</div>
+    </div>
+    <button type="button" class="btn-pwa-install" id="btnTriggerInstall">Install</button>
+    <button type="button" class="btn-pwa-close" id="btnCloseBanner" title="Close">&times;</button>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+  apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
+  authDomain: "my-apps-a87a3.firebaseapp.com",
+  projectId: "my-apps-a87a3",
+  storageBucket: "my-apps-a87a3.firebasestorage.app",
+  messagingSenderId: "880270085984",
+  appId: "1:880270085984:web:94d1895bd28335abaf1805"
+};
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
+
+    let cachedEmps = [];
+
+    function savePersistentSession(empObj) {
+      var cleanCode = String(empObj.code || '').trim();
+      try {
+        localStorage.setItem('ut_emp_code', cleanCode);
+        localStorage.setItem('ut_emp_profile', JSON.stringify(empObj));
+      } catch (e) {}
+      document.cookie = "ut_emp_code=" + encodeURIComponent(cleanCode) + "; path=/; max-age=31536000; SameSite=Lax";
+    }
+
+    function togglePasswordVisibility() {
+      var passInput = document.getElementById('loginPass');
+      var eyeIcon = document.getElementById('eyeIcon');
+      if (passInput.type === 'password') {
+        passInput.type = 'text';
+        eyeIcon.className = 'bi bi-eye-slash';
+      } else {
+        passInput.type = 'password';
+        eyeIcon.className = 'bi bi-eye';
+      }
+    }
+
+    function parseRestVal(v) {
+      if (!v || typeof v !== 'object') return v;
+      if (v.stringValue !== undefined) return v.stringValue;
+      if (v.integerValue !== undefined) return Number(v.integerValue);
+      if (v.doubleValue !== undefined) return Number(v.doubleValue);
+      if (v.booleanValue !== undefined) return Boolean(v.booleanValue);
+      if (v.nullValue !== undefined) return null;
+      if (v.arrayValue !== undefined) return (v.arrayValue.values || []).map(parseRestVal);
+      if (v.mapValue !== undefined) {
+        var obj = {};
+        var f = v.mapValue.fields || {};
+        Object.keys(f).forEach(function(k) { obj[k] = parseRestVal(f[k]); });
+        return obj;
+      }
+      return '';
+    }
+
+    // Only fetches employees when Log In is clicked (Saves 100% of idle page-load reads)
+    async function fetchEmployeesOnDemand() {
+      if (cachedEmps.length > 0) return cachedEmps;
+
+      try {
+        var sdkPromise = db.collection('employees').get();
+        var timeoutPromise = new Promise(function(_, reject) {
+          setTimeout(function() { reject(new Error("TIMEOUT")); }, 4500);
+        });
+        var snap = await Promise.race([sdkPromise, timeoutPromise]);
+        if (!snap.empty) {
+          cachedEmps = snap.docs.map(function(doc) {
+            var d = doc.data();
+            if (!d.code) d.code = doc.id;
+            return d;
+          });
+          return cachedEmps;
+        }
+      } catch (e) {}
+
+      var url = "https://firestore.googleapis.com/v1/projects/my-apps-a87a3/databases/(default)/documents/employees?key=" + firebaseConfig.apiKey;
+      var res = await fetch(url);
+      if (!res.ok) {
+        if (res.status === 429) {
+          throw new Error("Daily database free quota exceeded. Quota resets at 2:30 PM Myanmar Time.");
+        }
+        throw new Error("Connection error (HTTP " + res.status + ")");
+      }
+      var data = await res.json();
+      cachedEmps = (data.documents || []).map(function(doc) {
+        var obj = { docId: doc.name ? doc.name.split('/').pop() : '' };
+        var fields = doc.fields || {};
+        Object.keys(fields).forEach(function(k) { obj[k] = parseRestVal(fields[k]); });
+        if (!obj.code && obj.docId) obj.code = obj.docId;
+        return obj;
+      });
+      return cachedEmps;
+    }
+
+    function findMatchingUser(list, inputUser) {
+      var target = String(inputUser || '').trim().toLowerCase();
+      if (!target) return null;
+      return list.find(function(item) {
+        var uName = String(item.username || '').trim().toLowerCase();
+        var eCode = String(item.code || '').trim().toLowerCase();
+        var fName = String(item.name || '').trim().toLowerCase();
+        return uName === target || eCode === target || fName === target;
+      });
+    }
+
+    function isPasswordValid(empRecord, inputPass) {
+      var storedPass = String(empRecord.password !== undefined ? empRecord.password : '').trim();
+      var enteredPass = String(inputPass || '').trim();
+      return storedPass === enteredPass;
+    }
+
+    async function handlePortalLogin(e) {
+      e.preventDefault();
+
+      var u = document.getElementById('loginUser').value.trim();
+      var p = document.getElementById('loginPass').value.trim();
+      var btn = document.getElementById('btnLogin');
+      var badge = document.getElementById('connBadge');
+
+      btn.disabled = true;
+      btn.innerText = "Signing In...";
+      badge.className = 'badge bg-warning text-dark status-pill';
+      badge.innerHTML = '<i class="bi bi-arrow-repeat"></i> Verifying...';
+
+      try {
+        var list = await fetchEmployeesOnDemand();
+        var userRecord = findMatchingUser(list, u);
+
+        badge.className = 'badge bg-success status-pill';
+        badge.innerHTML = '<i class="bi bi-wifi"></i> Connected';
+
+        if (!userRecord) {
+          Swal.fire({
+            title: 'Account Not Found',
+            text: 'No employee found with Username or ID "' + u + '".',
+            icon: 'error',
+            confirmButtonColor: '#601a1a'
+          });
+          return;
+        }
+
+        if (!isPasswordValid(userRecord, p)) {
+          Swal.fire({
+            title: 'Incorrect Password',
+            text: 'The password you entered for "' + userRecord.name + '" is incorrect.',
+            icon: 'error',
+            confirmButtonColor: '#601a1a'
+          });
+          return;
+        }
+
+        if (userRecord.status === 'Inactive') {
+          Swal.fire({
+            title: 'Access Denied',
+            text: 'Your account is currently marked as Inactive.',
+            icon: 'warning',
+            confirmButtonColor: '#601a1a'
+          });
+          return;
+        }
+
+        savePersistentSession(userRecord);
+        window.location.replace('portal.html');
+
+      } catch (err) {
+        badge.className = 'badge bg-danger status-pill';
+        badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> Error';
+        Swal.fire({
+          title: 'Connection Error',
+          text: err.message,
+          icon: 'error',
+          confirmButtonColor: '#601a1a'
+        });
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Log In";
+      }
+    }
+
+    // PWA Install Prompt
+    var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    var installBanner = document.getElementById('pwaInstallBanner');
+    var deferredPrompt = null;
+
+    if (!isStandalone) {
+      setTimeout(function() { installBanner.classList.add('show'); }, 1000);
+    }
+
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (!isStandalone) installBanner.classList.add('show');
+    });
+
+    window.addEventListener('appinstalled', function() {
+      installBanner.classList.remove('show');
+      deferredPrompt = null;
+    });
+
+    document.getElementById('btnTriggerInstall').addEventListener('click', async function() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        var choice = await deferredPrompt.userChoice;
+        if (choice.outcome === 'accepted') installBanner.classList.remove('show');
+        deferredPrompt = null;
+      } else {
+        var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        Swal.fire({
+          title: 'Install Employee Portal',
+          html: isIOS
+            ? '<div class="text-start small"><p class="mb-2">1. Tap the <b>Share (<i class="bi bi-box-arrow-up"></i>)</b> button at the bottom of Safari.</p><p class="mb-0">2. Select <b>"Add to Home Screen"</b> and tap <b>Add</b>.</p></div>'
+            : '<div class="text-start small"><p class="mb-2">1. Tap the <b>Menu (⋮)</b> icon in the top-right corner of your browser.</p><p class="mb-0">2. Select <b>"Install app"</b> or <b>"Add to Home screen"</b>.</p></div>',
+          icon: 'info',
+          confirmButtonText: 'OK',
+          confirmButtonColor: '#601a1a'
+        });
+      }
+    });
+
+    document.getElementById('btnCloseBanner').addEventListener('click', function() {
+      installBanner.classList.remove('show');
+    });
+  </script>
+</body>
+</html>
