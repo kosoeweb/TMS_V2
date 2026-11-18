@@ -101,11 +101,20 @@
           <select id="leaveType" class="form-select mb-2" onchange="checkLeaveType()"><option value="">Select Leave Type...</option></select>
           <div id="leaveQuotaInfo" class="alert alert-info py-1 px-2 small mb-3" style="display:none;"></div>
 
+          <div class="mb-2">
+            <label class="small fw-bold mb-1">Leave Duration / Session</label>
+            <select id="lSession" class="form-select border-warning" onchange="onLeaveSessionChange()">
+              <option value="Full Day">Full Day (တစ်နေ့လုံး - 1 Day)</option>
+              <option value="Half Day (Morning)">Half Day - Morning (နေ့တစ်ဝက် - မနက်ပိုင်း - 0.5 Day)</option>
+              <option value="Half Day (Afternoon)">Half Day - Afternoon (နေ့တစ်ဝက် - ညနေပိုင်း - 0.5 Day)</option>
+            </select>
+          </div>
+
           <div class="row g-2 mb-3">
             <div class="col-6"><label class="small fw-bold">Start Date</label><input type="date" id="lStart" class="form-control" onchange="calcDays()"></div>
             <div class="col-6"><label class="small fw-bold">End Date</label><input type="date" id="lEnd" class="form-control" onchange="calcDays()"></div>
           </div>
-          <div class="mb-3"><label class="small fw-bold">Total Days</label><input type="number" id="lDays" class="form-control bg-light" readonly></div>
+          <div class="mb-3"><label class="small fw-bold">Total Days</label><input type="number" step="0.5" id="lDays" class="form-control bg-light" readonly></div>
           <div class="mb-3"><label class="small fw-bold">Reason</label><textarea id="lReason" class="form-control" rows="2" placeholder="Enter reason for leave..."></textarea></div>
           <button class="btn btn-warning w-100 fw-bold shadow-sm" id="btnLeave" onclick="submitLeave()">Submit Application</button>
         </div>
@@ -175,13 +184,13 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     const firebaseConfig = {
-  apiKey: "AIzaSyCnQcsv8TekFkOyOPnb3UWZytPq7zBxLfI",
-  authDomain: "my-apps-a87a3.firebaseapp.com",
-  projectId: "my-apps-a87a3",
-  storageBucket: "my-apps-a87a3.firebasestorage.app",
-  messagingSenderId: "880270085984",
-  appId: "1:880270085984:web:94d1895bd28335abaf1805"
-};
+      apiKey: "AIzaSyCiI78VStxxbhAO1WixiKra4r8ggIl6cxI",
+      authDomain: "tms-adv.firebaseapp.com",
+      projectId: "tms-adv",
+      storageBucket: "tms-adv.firebasestorage.app",
+      messagingSenderId: "1032960934679",
+      appId: "1:1032960934679:web:60a32de5f3d1e33532ad52"
+    };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
@@ -776,7 +785,6 @@
         return;
       }
 
-      // Allow attendance from anywhere once GPS is captured
       isGeoOK = true;
       const mapUrl = `https://www.google.com/maps?q=${cLat},${cLng}`;
 
@@ -1019,17 +1027,54 @@
       infoBox.innerHTML = `<strong>${type} (${currentYear}):</strong> Opening Quota: <b>${allowed}</b> Days | Used: <b>${used}</b> Days | Remaining: <b>${rem}</b> Days`;
     }
 
+    // ==================== HALF-DAY & FULL-DAY LEAVE LOGIC ====================
+    function onLeaveSessionChange() {
+      const session = document.getElementById('lSession').value;
+      const startEl = document.getElementById('lStart');
+      const endEl = document.getElementById('lEnd');
+
+      if (session !== 'Full Day') {
+        if (startEl.value) {
+          endEl.value = startEl.value;
+        }
+        endEl.readOnly = true;
+        endEl.classList.add('bg-light');
+      } else {
+        endEl.readOnly = false;
+        endEl.classList.remove('bg-light');
+      }
+      calcDays();
+    }
+
     function calcDays() {
-      let d1 = new Date(document.getElementById('lStart').value);
-      let d2 = new Date(document.getElementById('lEnd').value);
-      document.getElementById('lDays').value = (d1 && d2 && d2 >= d1) ? Math.ceil(Math.abs(d2 - d1) / 86400000) + 1 : '';
+      const session = document.getElementById('lSession').value;
+      const startEl = document.getElementById('lStart');
+      const endEl = document.getElementById('lEnd');
+
+      if (session !== 'Full Day') {
+        if (startEl.value) {
+          endEl.value = startEl.value;
+          document.getElementById('lDays').value = 0.5;
+        } else {
+          document.getElementById('lDays').value = '';
+        }
+        return;
+      }
+
+      let d1 = new Date(startEl.value);
+      let d2 = new Date(endEl.value);
+      document.getElementById('lDays').value = (startEl.value && endEl.value && d2 >= d1)
+        ? Math.ceil(Math.abs(d2 - d1) / 86400000) + 1
+        : '';
     }
 
     async function submitLeave() {
       let type = document.getElementById('leaveType').value;
+      let session = document.getElementById('lSession').value;
       let start = document.getElementById('lStart').value;
+      let end = document.getElementById('lEnd').value;
       let days = Number(document.getElementById('lDays').value);
-      let reason = document.getElementById('lReason').value;
+      let rawReason = document.getElementById('lReason').value.trim();
 
       if (!type || !start || !days) return Swal.fire("Incomplete", "Please fill in all required fields.", "warning");
 
@@ -1043,6 +1088,10 @@
         updatePersistentSession(verified);
       }
 
+      let formattedReason = session !== 'Full Day'
+        ? `[${session}]${rawReason ? ' ' + rawReason : ''}`
+        : rawReason;
+
       const btn = document.getElementById('btnLeave');
       const origHtml = btn.innerHTML;
       btn.disabled = true;
@@ -1054,10 +1103,11 @@
         emp_code: String(currentEmp.code).trim(),
         emp_name: String(currentEmp.name).trim(),
         leave_type: type,
+        leave_session: session,
         start_date: start,
-        end_date: document.getElementById('lEnd').value,
+        end_date: end || start,
         total_days: days,
-        reason: reason,
+        reason: formattedReason,
         status: "Pending",
         created_at: Date.now()
       };
@@ -1069,8 +1119,10 @@
         updateStatusBadge(true, false);
         checkLeaveType();
         renderMyLedger();
-        Swal.fire("Submitted", "Leave application submitted successfully.", "success");
+        Swal.fire("Submitted", `${type} (${days} Day${days > 1 ? 's' : ''}) application submitted successfully.`, "success");
         ['lStart', 'lEnd', 'lDays', 'lReason'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('lSession').value = 'Full Day';
+        onLeaveSessionChange();
       } catch (err) {
         updateStatusBadge(false, false);
         Swal.fire("Error", err.message, "error");
